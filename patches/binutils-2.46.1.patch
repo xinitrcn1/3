@@ -1,0 +1,70 @@
+diff --git a/ld/emulparams/elf32_spu.sh b/ld/emulparams/elf32_spu.sh
+index 523f3233..9fc4b889 100644
+--- a/ld/emulparams/elf32_spu.sh
++++ b/ld/emulparams/elf32_spu.sh
+@@ -6,6 +6,8 @@ NO_REL_RELOCS=yes
+ ARCH=spu
+ MACHINE=
+ ALIGNMENT=16
++GENERATE_PIE_SCRIPT=yes
++GENERATE_COMBRELOC_SCRIPT=yes
+ TEXT_START_ADDR=0
+ INITIAL_READONLY_SECTIONS='.interrupt : { KEEP(*(.interrupt)) }'
+ if test -z "${CREATE_SHLIB}"; then
+diff --git a/ld/emultempl/spuelf.em b/ld/emultempl/spuelf.em
+index 98e5d763..d5d9752f 100644
+--- a/ld/emultempl/spuelf.em
++++ b/ld/emultempl/spuelf.em
+@@ -258,6 +258,13 @@ spu_elf_load_ovl_mgr (void)
+   return total;
+ }
+ 
++static void
++spu_before_parse (void)
++{
++  gld${EMULATION_NAME}_before_parse ();
++  config.has_pie = `if test -n "$GENERATE_PIE_SCRIPT" ; then echo true ; else echo false ; fi`;
++}
++
+ /* Go find if we need to do anything special for overlays.  */
+ 
+ static void
+diff --git a/ld/ld.h b/ld/ld.h
+index 76825e42..1c94805f 100644
+--- a/ld/ld.h
++++ b/ld/ld.h
+@@ -236,6 +236,9 @@ typedef struct
+      parameter.  */
+   bool has_shared;
+ 
++  /* If TRUE, -pie is supported */
++  bool has_pie;
++
+   /* If TRUE, build constructors.  */
+   bool build_constructors;
+ 
+diff --git a/ld/ldmain.c b/ld/ldmain.c
+index a2711d23..4bbb2a86 100644
+--- a/ld/ldmain.c
++++ b/ld/ldmain.c
+@@ -743,6 +743,7 @@ main (int argc, char **argv)
+   config.make_executable = true;
+   config.magic_demand_paged = true;
+   config.text_read_only = true;
++  config.has_pie = false;
+   config.print_map_discarded = true;
+   link_info.disable_target_specific_optimizations = -1;
+ 
+diff --git a/ld/lexsup.c b/ld/lexsup.c
+index 158abb6d..b9d6d794 100644
+--- a/ld/lexsup.c
++++ b/ld/lexsup.c
+@@ -1368,6 +1368,8 @@ parse_args (unsigned argc, char **argv)
+ 
+ 	      link_info.type = type_pie;
+ 	    }
++	  else if (config.has_pie)
++	    link_info.type = type_pie;
+ 	  else
+ 	    fatal (_("%P: -pie not supported\n"));
+ 	  break;

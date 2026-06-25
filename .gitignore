@@ -1,0 +1,5 @@
+*
+!.gitignore
+!build.sh
+!patches/
+!patches/*.patch

@@ -38,10 +38,10 @@ index 38f3d037a..f035c0a5b 100755
  	# for a CPU type and a company and sometimes even an OS.
 diff --git a/gcc/common/config/spu/spu-common.cc b/gcc/common/config/spu/spu-common.cc
 new file mode 100644
-index 000000000..8a7bab76d
+index 000000000..941e6517a
 --- /dev/null
 +++ b/gcc/common/config/spu/spu-common.cc
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,55 @@
 +/* Common hooks for SPU.
 +   Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
@@ -67,7 +67,6 @@ index 000000000..8a7bab76d
 +#include "common/common-target-def.h"
 +#include "opts.h"
 +#include "flags.h"
-+#include "params.h"
 +
 +static void
 +spu_option_init_struct (struct gcc_options *opts)
@@ -82,7 +81,7 @@ index 000000000..8a7bab76d
 +{
 +  /* Override some of the default param values.  With so many registers
 +     larger values are better for these params.  */
-+  set_default_param_value (PARAM_MAX_PENDING_LIST_LENGTH, 128);
++  /*set_default_param_value (PARAM_MAX_PENDING_LIST_LENGTH, 128);*/
 +}
 +
 +#undef TARGET_DEFAULT_TARGET_FLAGS
@@ -2886,7 +2885,7 @@ index 000000000..322abc0fb
 +
 diff --git a/gcc/config/spu/spu-c.cc b/gcc/config/spu/spu-c.cc
 new file mode 100644
-index 000000000..ba858f1fb
+index 000000000..8dc248253
 --- /dev/null
 +++ b/gcc/config/spu/spu-c.cc
 @@ -0,0 +1,231 @@
@@ -2954,7 +2953,7 @@ index 000000000..ba858f1fb
 +      if (ident)
 +	{
 +	  enum rid rid_code = (enum rid)(ident->rid_code);
-+	  if (ident->type == NT_MACRO)
++	  if (ident->type == NT_MACRO_ARG)
 +	    {
 +	      (void) cpp_get_token (pfile);
 +	      tok = cpp_peek_token (pfile, 0);
@@ -2976,7 +2975,7 @@ index 000000000..ba858f1fb
 +/* target hook for resolve_overloaded_builtin(). Returns a function call
 +   RTX if we can resolve the overloaded builtin */
 +tree
-+spu_resolve_overloaded_builtin (location_t loc, tree fndecl, void *passed_args)
++spu_resolve_overloaded_builtin (location_t loc, tree fndecl, void *passed_args, bool)
 +{
 +#define SCALAR_TYPE_P(t) (INTEGRAL_TYPE_P (t) \
 +			  || SCALAR_FLOAT_TYPE_P (t) \
@@ -3239,10 +3238,10 @@ index 000000000..ee519e7ea
 +INT_MODE (OI, 32);
 diff --git a/gcc/config/spu/spu-protos.h b/gcc/config/spu/spu-protos.h
 new file mode 100644
-index 000000000..e7fc9bdfc
+index 000000000..bcb97e5d9
 --- /dev/null
 +++ b/gcc/config/spu/spu-protos.h
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,100 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -3323,6 +3322,11 @@ index 000000000..e7fc9bdfc
 +extern rtx spu_legitimize_reload_address (rtx, machine_mode, int, int);
 +extern void spu_expand_atomic_op (enum rtx_code code, rtx mem, rtx val,
 +				  rtx orig_before, rtx orig_after);
++extern bool spu_truly_noop_truncation (poly_uint64 outprec, poly_uint64 inprec);
++extern HOST_WIDE_INT spu_constant_alignment (const_tree, HOST_WIDE_INT align);
++extern HOST_WIDE_INT spu_function_arg_offset (machine_mode mode, const_tree type);
++extern pad_direction spu_function_arg_padding (machine_mode, const_tree);
++extern HOST_WIDE_INT spu_starting_frame_offset ();
 +#endif /* RTX_CODE  */
 +
 +extern void spu_init_expanders (void);
@@ -3331,7 +3335,7 @@ index 000000000..e7fc9bdfc
 +
 +/* spu-c.c */
 +extern tree spu_resolve_overloaded_builtin (location_t, tree fndecl,
-+    					    void *fnargs);
++    					    void *fnargs, bool);
 +extern rtx spu_expand_builtin (tree exp, rtx target, rtx subtarget,
 +			       machine_mode mode, int ignore);
 +extern rtx spu_expand_builtin (tree, rtx, rtx, machine_mode, int);
@@ -3340,10 +3344,10 @@ index 000000000..e7fc9bdfc
 +
 diff --git a/gcc/config/spu/spu.cc b/gcc/config/spu/spu.cc
 new file mode 100644
-index 000000000..338ff1e7a
+index 000000000..3b8783bd8
 --- /dev/null
 +++ b/gcc/config/spu/spu.cc
-@@ -0,0 +1,7367 @@
+@@ -0,0 +1,7461 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -3359,6 +3363,8 @@ index 000000000..338ff1e7a
 +   You should have received a copy of the GNU General Public License
 +   along with GCC; see the file COPYING3.  If not see
 +   <http://www.gnu.org/licenses/>.  */
++
++#define IN_TARGET_CODE 1
 +
 +#include "config.h"
 +#include "system.h"
@@ -3394,13 +3400,17 @@ index 000000000..338ff1e7a
 +#include "langhooks.h"
 +#include "reload.h"
 +#include "sched-int.h"
-+#include "params.h"
 +#include "gimplify.h"
 +#include "tm-constrs.h"
 +#include "ddg.h"
 +#include "dumpfile.h"
 +#include "builtins.h"
 +#include "rtl-iter.h"
++#include "hard-reg-set.h"
++#include "poly-int-types.h"
++#include "flags.h"
++#include "attribs.h"
++#include "tree-vectorizer.h"
 +
 +/* This file should be included last.  */
 +#include "target-def.h"
@@ -3573,16 +3583,20 @@ index 000000000..338ff1e7a
 +
 +  /* Small loops will be unpeeled at -O3.  For SPU it is more important
 +     to keep code small by default.  */
++  /*
 +  if (!flag_unroll_loops && !flag_peel_loops)
 +    maybe_set_param_value (PARAM_MAX_COMPLETELY_PEEL_TIMES, 4,
 +			   global_options.x_param_values,
 +			   global_options_set.x_param_values);
++  */
 +
 +  flag_omit_frame_pointer = 1;
 +
 +  /* Functions must be 8 byte aligned so we correctly handle dual issue */
-+  if (align_functions < 8)
-+    align_functions = 8;
++  /*
++  if (align_functions.levels[0].get_value () < 8)
++    align_functions.levels[0].set_value (8);
++  */
 +
 +  spu_hint_dist = 8*4 - spu_max_nops*4;
 +  if (spu_hint_dist < 0) 
@@ -3691,7 +3705,7 @@ index 000000000..338ff1e7a
 +static rtx
 +adjust_operand (rtx op, HOST_WIDE_INT * start)
 +{
-+  machine_mode mode;
++  opt_machine_mode mode;
 +  int op_size;
 +  /* Strip any paradoxical SUBREG.  */
 +  if (GET_CODE (op) == SUBREG
@@ -3715,7 +3729,7 @@ index 000000000..338ff1e7a
 +  /* If it is not a MODE_INT (and/or it is smaller than SI) add a SUBREG. */
 +  mode = mode_for_size (op_size, MODE_INT, 0);
 +  if (mode != GET_MODE (op))
-+    op = gen_rtx_SUBREG (mode, op, 0);
++    op = gen_rtx_SUBREG (mode.require (), op, 0);
 +  return op;
 +}
 +
@@ -4280,7 +4294,7 @@ index 000000000..338ff1e7a
 +      rtx target = operands[0];
 +      int compare_size = GET_MODE_BITSIZE (comp_mode);
 +      int target_size = GET_MODE_BITSIZE (GET_MODE (target));
-+      machine_mode mode = mode_for_size (target_size, MODE_INT, 0);
++      opt_machine_mode mode = mode_for_size (target_size, MODE_INT, 0);
 +      rtx select_mask;
 +      rtx op_t = operands[2];
 +      rtx op_f = operands[3];
@@ -4289,15 +4303,15 @@ index 000000000..338ff1e7a
 +         mask based on that result. */
 +      if (target_size > compare_size)
 +	{
-+	  select_mask = gen_reg_rtx (mode);
++	  select_mask = gen_reg_rtx (mode.require ());
 +	  emit_insn (gen_extend_compare (select_mask, compare_result));
 +	}
 +      else if (target_size < compare_size)
 +	select_mask =
-+	  gen_rtx_SUBREG (mode, compare_result,
++	  gen_rtx_SUBREG (mode.require (), compare_result,
 +			  (compare_size - target_size) / BITS_PER_UNIT);
-+      else if (comp_mode != mode)
-+	select_mask = gen_rtx_SUBREG (mode, compare_result, 0);
++      else if (comp_mode != mode.require ())
++	select_mask = gen_rtx_SUBREG (mode.require (), compare_result, 0);
 +      else
 +	select_mask = compare_result;
 +
@@ -4827,8 +4841,8 @@ index 000000000..338ff1e7a
 +int
 +spu_split_immediate (rtx * ops)
 +{
-+  machine_mode mode = GET_MODE (ops[0]);
-+  enum immediate_class c = classify_immediate (ops[1], mode);
++  opt_machine_mode mode = GET_MODE (ops[0]);
++  enum immediate_class c = classify_immediate (ops[1], mode.require ());
 +
 +  switch (c)
 +    {
@@ -4838,16 +4852,16 @@ index 000000000..338ff1e7a
 +	unsigned char arrlo[16];
 +	rtx to, temp, hi, lo;
 +	int i;
-+	machine_mode imode = mode;
++	opt_machine_mode imode = mode;
 +	/* We need to do reals as ints because the constant used in the
 +	   IOR might not be a legitimate real constant. */
-+	imode = int_mode_for_mode (mode);
-+	constant_to_array (mode, ops[1], arrhi);
-+	if (imode != mode)
-+	  to = simplify_gen_subreg (imode, ops[0], mode, 0);
++	imode = int_mode_for_mode (mode.require ());
++	constant_to_array (mode.require (), ops[1], arrhi);
++	if (imode.require () != mode.require ())
++	  to = simplify_gen_subreg (imode.require (), ops[0], mode.require (), 0);
 +	else
 +	  to = ops[0];
-+	temp = !can_create_pseudo_p () ? to : gen_reg_rtx (imode);
++	temp = !can_create_pseudo_p () ? to : gen_reg_rtx (imode.require ());
 +	for (i = 0; i < 16; i += 4)
 +	  {
 +	    arrlo[i + 2] = arrhi[i + 2];
@@ -4855,10 +4869,10 @@ index 000000000..338ff1e7a
 +	    arrlo[i + 0] = arrlo[i + 1] = 0;
 +	    arrhi[i + 2] = arrhi[i + 3] = 0;
 +	  }
-+	hi = array_to_constant (imode, arrhi);
-+	lo = array_to_constant (imode, arrlo);
++	hi = array_to_constant (imode.require (), arrhi);
++	lo = array_to_constant (imode.require (), arrlo);
 +	emit_move_insn (temp, hi);
-+	emit_insn (gen_rtx_SET (to, gen_rtx_IOR (imode, temp, lo)));
++	emit_insn (gen_rtx_SET (to, gen_rtx_IOR (imode.require (), temp, lo)));
 +	return 1;
 +      }
 +    case IC_FSMBI2:
@@ -4867,13 +4881,13 @@ index 000000000..338ff1e7a
 +	unsigned char arr_andbi[16];
 +	rtx to, reg_fsmbi, reg_and;
 +	int i;
-+	machine_mode imode = mode;
++	opt_machine_mode imode = mode;
 +	/* We need to do reals as ints because the constant used in the
 +	 * AND might not be a legitimate real constant. */
-+	imode = int_mode_for_mode (mode);
-+	constant_to_array (mode, ops[1], arr_fsmbi);
-+	if (imode != mode)
-+	  to = simplify_gen_subreg(imode, ops[0], GET_MODE (ops[0]), 0);
++	imode = int_mode_for_mode (mode.require ());
++	constant_to_array (mode.require (), ops[1], arr_fsmbi);
++	if (imode.require () != mode.require ())
++	  to = simplify_gen_subreg(imode.require (), ops[0], GET_MODE (ops[0]), 0);
 +	else
 +	  to = ops[0];
 +	for (i = 0; i < 16; i++)
@@ -4884,16 +4898,16 @@ index 000000000..338ff1e7a
 +	    }
 +	for (i = 1; i < 16; i++)
 +	  arr_andbi[i] = arr_andbi[0];
-+	reg_fsmbi = array_to_constant (imode, arr_fsmbi);
-+	reg_and = array_to_constant (imode, arr_andbi);
++	reg_fsmbi = array_to_constant (imode.require (), arr_fsmbi);
++	reg_and = array_to_constant (imode.require (), arr_andbi);
 +	emit_move_insn (to, reg_fsmbi);
-+	emit_insn (gen_rtx_SET (to, gen_rtx_AND (imode, to, reg_and)));
++	emit_insn (gen_rtx_SET (to, gen_rtx_AND (imode.require (), to, reg_and)));
 +	return 1;
 +      }
 +    case IC_POOL:
 +      if (reload_in_progress || reload_completed)
 +	{
-+	  rtx mem = force_const_mem (mode, ops[1]);
++	  rtx mem = force_const_mem (mode.require (), ops[1]);
 +	  if (TARGET_LARGE_MEM)
 +	    {
 +	      rtx addr = gen_rtx_REG (Pmode, REGNO (ops[0]));
@@ -4910,8 +4924,8 @@ index 000000000..338ff1e7a
 +	{
 +	  if (c == IC_IL2s)
 +	    {
-+	      emit_move_insn (ops[0], gen_rtx_HIGH (mode, ops[1]));
-+	      emit_move_insn (ops[0], gen_rtx_LO_SUM (mode, ops[0], ops[1]));
++	      emit_move_insn (ops[0], gen_rtx_HIGH (mode.require (), ops[1]));
++	      emit_move_insn (ops[0], gen_rtx_LO_SUM (mode.require (), ops[0], ops[1]));
 +	    }
 +	  else if (flag_pic)
 +	    emit_insn (gen_pic (ops[0], ops[1]));
@@ -6113,7 +6127,9 @@ index 000000000..338ff1e7a
 +spu_sched_init (FILE *file ATTRIBUTE_UNUSED, int verbose ATTRIBUTE_UNUSED,
 +		int max_ready ATTRIBUTE_UNUSED)
 +{
-+  if (align_labels > 4 || align_loops > 4 || align_jumps > 4)
++  if (align_labels.levels[0].get_value () > 4
++      || align_loops.levels[0].get_value () > 4
++      || align_jumps.levels[0].get_value () > 4)
 +    {
 +      /* When any block might be at least 8-byte aligned, assume they
 +         will all be at least 8-byte aligned to make sure dual issue
@@ -6393,7 +6409,7 @@ index 000000000..338ff1e7a
 +     jump_insn.  We adjust here so higher cost insns will get scheduled
 +     earlier. */
 +  if (JUMP_P (insn) && dep_type == REG_DEP_ANTI)
-+    return insn_cost (dep_insn) - 3;
++    return insn_cost (dep_insn, false) - 3;
 +
 +  return cost;
 +}
@@ -6718,7 +6734,7 @@ index 000000000..338ff1e7a
 +  constant_to_array (mode, op, arr);
 +
 +  bytes = GET_MODE_UNIT_SIZE (mode);
-+  mode = mode_for_size (GET_MODE_UNIT_BITSIZE (mode), MODE_INT, 0);
++  mode = mode_for_size (GET_MODE_UNIT_BITSIZE (mode), MODE_INT, 0).require ();
 +
 +  /* Check that bytes are repeated. */
 +  for (i = bytes; i < 16; i += bytes)
@@ -6761,7 +6777,7 @@ index 000000000..338ff1e7a
 +  mode = GET_MODE_INNER (mode);
 +
 +  bytes = GET_MODE_SIZE (mode);
-+  int_mode = mode_for_size (GET_MODE_BITSIZE (mode), MODE_INT, 0);
++  int_mode = mode_for_size (GET_MODE_BITSIZE (mode), MODE_INT, 0).require ();
 +
 +  /* Check that bytes are repeated. */
 +  for (i = bytes; i < 16; i += bytes)
@@ -7157,7 +7173,7 @@ index 000000000..338ff1e7a
 +	  if (byte_size < 4)
 +	    byte_size = 4;
 +	  smode =
-+	    smallest_mode_for_size (byte_size * BITS_PER_UNIT, MODE_INT);
++	    smallest_mode_for_size (byte_size * BITS_PER_UNIT, MODE_INT).require ();
 +	  RTVEC_ELT (v, n) =
 +	    gen_rtx_EXPR_LIST (VOIDmode,
 +			       gen_rtx_REG (smode, FIRST_RETURN_REGNUM + n),
@@ -7195,7 +7211,7 @@ index 000000000..338ff1e7a
 +      rtx gr_reg;
 +      if (byte_size < 4)
 +	byte_size = 4;
-+      smode = smallest_mode_for_size (byte_size * BITS_PER_UNIT, MODE_INT);
++      smode = smallest_mode_for_size (byte_size * BITS_PER_UNIT, MODE_INT).require ();
 +      gr_reg = gen_rtx_EXPR_LIST (VOIDmode,
 +				  gen_rtx_REG (smode, FIRST_ARG_REGNUM + *cum),
 +				  const0_rtx);
@@ -7217,7 +7233,7 @@ index 000000000..338ff1e7a
 +	   ? ((int_size_in_bytes (type) + 15) / 16)
 +	   : mode == VOIDmode
 +	   ? 1
-+	   : HARD_REGNO_NREGS (cum, mode));
++	   : TARGET_HARD_REGNO_NREGS (cum, mode));
 +}
 +
 +/* Variable sized types are passed by reference.  */
@@ -7373,8 +7389,7 @@ index 000000000..338ff1e7a
 +
 +  /* if an object is dynamically sized, a pointer to it is passed
 +     instead of the object itself. */
-+  pass_by_reference_p = pass_by_reference (NULL, TYPE_MODE (type), type,
-+					   false);
++  pass_by_reference_p = pass_by_reference (NULL, function_arg_info (type, false));
 +  if (pass_by_reference_p)
 +    type = build_pointer_type (type);
 +  size = int_size_in_bytes (type);
@@ -7547,15 +7562,13 @@ index 000000000..338ff1e7a
 +      rtx ndirty = GEN_INT (GET_MODE_SIZE (GET_MODE (mem)));
 +      if (!cache_fetch_dirty)
 +	cache_fetch_dirty = init_one_libfunc ("__cache_fetch_dirty");
-+      emit_library_call_value (cache_fetch_dirty, data_addr, LCT_NORMAL, Pmode,
-+			       2, ea_addr, EAmode, ndirty, SImode);
++      emit_library_call_value (cache_fetch_dirty, data_addr, LCT_NORMAL, Pmode, ea_addr, EAmode, ndirty, SImode);
 +    }
 +  else
 +    {
 +      if (!cache_fetch)
 +	cache_fetch = init_one_libfunc ("__cache_fetch");
-+      emit_library_call_value (cache_fetch, data_addr, LCT_NORMAL, Pmode,
-+			       1, ea_addr, EAmode);
++      emit_library_call_value (cache_fetch, data_addr, LCT_NORMAL, Pmode, ea_addr, EAmode);
 +    }
 +}
 +
@@ -7775,7 +7788,7 @@ index 000000000..338ff1e7a
 +  if (GET_CODE (ops[1]) == SUBREG && !valid_subreg (ops[1]))
 +    {
 +      rtx from = SUBREG_REG (ops[1]);
-+      machine_mode imode = int_mode_for_mode (GET_MODE (from));
++      machine_mode imode = int_mode_for_mode (GET_MODE (from)).require ();
 +
 +      gcc_assert (GET_MODE_CLASS (mode) == MODE_INT
 +		  && GET_MODE_CLASS (imode) == MODE_INT
@@ -7843,7 +7856,7 @@ index 000000000..338ff1e7a
 +spu_convert_move (rtx dst, rtx src)
 +{
 +  machine_mode mode = GET_MODE (dst);
-+  machine_mode int_mode = mode_for_size (GET_MODE_BITSIZE (mode), MODE_INT, 0);
++  machine_mode int_mode = mode_for_size (GET_MODE_BITSIZE (mode), MODE_INT, 0).require ();
 +  rtx reg;
 +  gcc_assert (GET_MODE (src) == TImode);
 +  reg = int_mode != mode ? gen_reg_rtx (int_mode) : dst;
@@ -9984,6 +9997,22 @@ index 000000000..338ff1e7a
 +  return cost;
 +}
 +
++/* Straight up copies from RS6000. */
++static unsigned
++spu_adjust_vect_cost_per_stmt (enum vect_cost_for_stmt kind,
++				  struct _stmt_vec_info *stmt_info)
++{
++  if (kind == scalar_stmt && stmt_info && stmt_info->stmt
++      && gimple_code (stmt_info->stmt) == GIMPLE_ASSIGN)
++    {
++      tree_code subcode = gimple_assign_rhs_code (stmt_info->stmt);
++      if (subcode == COND_EXPR)
++	return 2;
++    }
++
++  return 0;
++}
++
 +/* Implement targetm.vectorize.add_stmt_cost.  */
 +
 +static unsigned
@@ -9991,13 +10020,12 @@ index 000000000..338ff1e7a
 +		   struct _stmt_vec_info *stmt_info, int misalign,
 +		   enum vect_cost_model_location where)
 +{
-+  unsigned *cost = (unsigned *) data;
 +  unsigned retval = 0;
-+
++#if 0
++  unsigned *cost = (unsigned *) data;
 +  if (flag_vect_cost_model)
 +    {
-+      tree vectype = stmt_info ? stmt_vectype (stmt_info) : NULL_TREE;
-+      int stmt_cost = spu_builtin_vectorization_cost (kind, vectype, misalign);
++      int stmt_cost = spu_adjust_vect_cost_per_stmt (kind, stmt_info);
 +
 +      /* Statements in an inner loop relative to the loop being
 +	 vectorized are weighted more heavily.  The value here is
@@ -10008,7 +10036,7 @@ index 000000000..338ff1e7a
 +      retval = (unsigned) (count * stmt_cost);
 +      cost[where] += retval;
 +    }
-+
++#endif
 +  return retval;
 +}
 +
@@ -10117,7 +10145,7 @@ index 000000000..338ff1e7a
 +      result = gen_reg_rtx (Pmode);
 +      ls = force_reg (Pmode, convert_modes (Pmode, DImode, ls, 1));
 +      op = force_reg (Pmode, convert_modes (Pmode, EAmode, op, 1));
-+      ls = emit_conditional_move (ls, NE, op, const0_rtx, Pmode,
++      ls = emit_conditional_move (ls, { NE, op, const0_rtx, Pmode },
 +					  ls, const0_rtx, Pmode, 1);
 +
 +      emit_insn (gen_subsi3 (result, op, ls));
@@ -10136,7 +10164,7 @@ index 000000000..338ff1e7a
 +      result = gen_reg_rtx (EAmode);
 +      ls = force_reg (EAmode, convert_modes (EAmode, DImode, ls, 1));
 +      op = force_reg (Pmode, op);
-+      ls = emit_conditional_move (ls, NE, op, const0_rtx, Pmode,
++      ls = emit_conditional_move (ls, { NE, op, const0_rtx, Pmode },
 +					  ls, const0_rtx, EAmode, 1);
 +      op = force_reg (EAmode, convert_modes (EAmode, Pmode, op, 1));
 +
@@ -10486,20 +10514,90 @@ index 000000000..338ff1e7a
 +    emit_move_insn (orig_after, after);
 +}
 +
-+
++bool
++spu_truly_noop_truncation (poly_uint64 outprec, poly_uint64 inprec)
++{
++  return inprec <= 32 && outprec <= inprec;
++}
++
++HOST_WIDE_INT
++spu_constant_alignment (const_tree, HOST_WIDE_INT align)
++{
++  return align > 128 ? align : 128;
++}
++
++/* The SPU ABI wants 32/64-bit types at offset 0 in the quad-word on the
++   stack.  8/16-bit types should be at offsets 3/2 respectively.  */
++HOST_WIDE_INT
++spu_function_arg_offset (machine_mode mode, const_tree type)
++{
++  return (type && INTEGRAL_TYPE_P (type) && GET_MODE_SIZE (mode) < 4)
++    ? (4 - GET_MODE_SIZE (mode))
++    : 0;
++}
++
++pad_direction
++spu_function_arg_padding (machine_mode, const_tree)
++{
++  return upward;
++}
++
++HOST_WIDE_INT
++spu_starting_frame_offset ()
++{
++  return 0;
++}
++
++/* GCC assumes that modes are in the lowpart of a register, which is
++   only true for SPU. */
++bool
++spu_can_change_mode_class (machine_mode from, machine_mode to, reg_class_t)
++{
++  return !((GET_MODE_SIZE (from) > 4 || GET_MODE_SIZE (to) > 4) \
++	 && (GET_MODE_SIZE (from) < 16 || GET_MODE_SIZE (to) < 16) \
++	 && GET_MODE_SIZE (from) != GET_MODE_SIZE (to));
++}
++
 +/*  Table of machine attributes.  */
 +static const struct attribute_spec spu_attribute_table[] =
 +{
-+  /* { name, min_len, max_len, decl_req, type_req, fn_type_req, handler,
-+       affects_type_identity } */
-+  { "naked",          0, 0, true,  false, false, spu_handle_fndecl_attribute,
-+    false },
-+  { "spu_vector",     0, 0, false, true,  false, spu_handle_vector_attribute,
-+    false },
-+  { NULL,             0, 0, false, false, false, NULL, false }
++  /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
++       affects_type_identity, handler, exclude } */
++  { "naked",          0, 0, true,  false, false, false, spu_handle_fndecl_attribute },
++  { "spu_vector",     0, 0, false, true,  false, false, spu_handle_vector_attribute },
++  { NULL,             0, 0, false, false, false, false, NULL }
 +};
 +
 +/*  TARGET overrides.  */
++
++/* Values in Registers */
++
++#define TARGET_HARD_REGNO_NREGS(REGNO, MODE)   \
++    ((GET_MODE_BITSIZE(MODE)+MAX_FIXED_MODE_SIZE-1)/MAX_FIXED_MODE_SIZE)
++
++#define TARGET_HARD_REGNO_MODE_OK(REGNO, MODE) 1
++
++#define TARGET_MODES_TIEABLE_P(MODE1, MODE2) \
++  (GET_MODE_BITSIZE (MODE1) <= MAX_FIXED_MODE_SIZE \
++   && GET_MODE_BITSIZE (MODE2) <= MAX_FIXED_MODE_SIZE)
++
++#undef TARGET_CAN_CHANGE_MODE_CLASS
++#define TARGET_CAN_CHANGE_MODE_CLASS spu_can_change_mode_class
++
++#undef TARGET_STARTING_FRAME_OFFSET
++#define TARGET_STARTING_FRAME_OFFSET spu_starting_frame_offset
++
++#undef TARGET_FUNCTION_ARG_OFFSET
++#define TARGET_FUNCTION_ARG_OFFSET spu_function_arg_offset
++
++#undef TARGET_FUNCTION_ARG_PADDING
++#define TARGET_FUNCTION_ARG_PADDING spu_function_arg_padding
++
++#undef TARGET_TRULY_NOOP_TRUNCATION
++#define TARGET_TRULY_NOOP_TRUNCATION spu_truly_noop_truncation
++
++#undef TARGET_CONSTANT_ALIGNMENT
++#define TARGET_CONSTANT_ALIGNMENT spu_constant_alignment
 +
 +#undef TARGET_LRA_P
 +#define TARGET_LRA_P hook_bool_void_false
@@ -10713,10 +10811,10 @@ index 000000000..338ff1e7a
 +#include "gt-spu.h"
 diff --git a/gcc/config/spu/spu.h b/gcc/config/spu/spu.h
 new file mode 100644
-index 000000000..7fd0d7e56
+index 000000000..2b51e234f
 --- /dev/null
 +++ b/gcc/config/spu/spu.h
-@@ -0,0 +1,546 @@
+@@ -0,0 +1,512 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -10815,7 +10913,6 @@ index 000000000..7fd0d7e56
 +   on the stack.  (Except a bug (?) allows some stack objects to be
 +   unaligned.)  */
 +#define DATA_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
-+#define TARGET_CONSTANT_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
 +#define LOCAL_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
 +
 +#define EMPTY_FIELD_BOUNDARY 32
@@ -10827,7 +10924,7 @@ index 000000000..7fd0d7e56
 +	(GET_CODE (X) == SYMBOL_REF \
 +          && (SYMBOL_REF_FLAGS (X) & SYMBOL_FLAG_ALIGN1) == 0 \
 +	  && (! SYMBOL_REF_FUNCTION_P (X) \
-+	      || align_functions >= 16))
++	      || align_functions.levels[0].get_value () >= 16))
 +
 +#define PCC_BITFIELD_TYPE_MATTERS 1
 +
@@ -10883,19 +10980,6 @@ index 000000000..7fd0d7e56
 +    1, 1, 1 \
 +}
 +
-+
-+/* Values in Registers */
-+
-+#define HARD_REGNO_NREGS(REGNO, MODE)   \
-+    ((GET_MODE_BITSIZE(MODE)+MAX_FIXED_MODE_SIZE-1)/MAX_FIXED_MODE_SIZE)
-+
-+#define HARD_REGNO_MODE_OK(REGNO, MODE) 1
-+
-+#define MODES_TIEABLE_P(MODE1, MODE2) \
-+  (GET_MODE_BITSIZE (MODE1) <= MAX_FIXED_MODE_SIZE \
-+   && GET_MODE_BITSIZE (MODE2) <= MAX_FIXED_MODE_SIZE)
-+
-+
 +/* Register Classes */
 +
 +enum reg_class { 
@@ -10936,13 +11020,6 @@ index 000000000..7fd0d7e56
 +#define INT_REG_OK_FOR_BASE_P(X,STRICT) \
 +	((!(STRICT) || REGNO_OK_FOR_BASE_P (REGNO (X))))
 +
-+/* GCC assumes that modes are in the lowpart of a register, which is
-+   only true for SPU. */
-+#define CANNOT_CHANGE_MODE_CLASS(FROM, TO, CLASS) \
-+        ((GET_MODE_SIZE (FROM) > 4 || GET_MODE_SIZE (TO) > 4) \
-+	 && (GET_MODE_SIZE (FROM) < 16 || GET_MODE_SIZE (TO) < 16) \
-+	 && GET_MODE_SIZE (FROM) != GET_MODE_SIZE (TO))
-+
 +#define REGISTER_TARGET_PRAGMAS() do {					\
 +c_register_addr_space ("__ea", ADDR_SPACE_EA);				\
 +targetm.resolve_overloaded_builtin = spu_resolve_overloaded_builtin;	\
@@ -10954,8 +11031,6 @@ index 000000000..7fd0d7e56
 +#define STACK_GROWS_DOWNWARD 1
 +
 +#define FRAME_GROWS_DOWNWARD 1
-+
-+#define STARTING_FRAME_OFFSET (0)
 +
 +#define STACK_POINTER_OFFSET 32
 +
@@ -11040,15 +11115,6 @@ index 000000000..7fd0d7e56
 +
 +#define INIT_CUMULATIVE_ARGS(CUM,FNTYPE,LIBNAME,FNDECL,N_NAMED_ARGS) \
 +		((CUM) = 0)
-+
-+/* The SPU ABI wants 32/64-bit types at offset 0 in the quad-word on the
-+   stack.  8/16-bit types should be at offsets 3/2 respectively.  */
-+#define FUNCTION_ARG_OFFSET(MODE, TYPE)					\
-+(((TYPE) && INTEGRAL_TYPE_P (TYPE) && GET_MODE_SIZE (MODE) < 4)		\
-+ ? (4 - GET_MODE_SIZE (MODE))						\
-+ : 0)
-+
-+#define FUNCTION_ARG_PADDING(MODE,TYPE) upward
 +
 +#define PAD_VARARGS_DOWN 0
 +
@@ -11221,15 +11287,13 @@ index 000000000..7fd0d7e56
 +
 +#define MOVE_MAX 16 
 +
-+#define TRULY_NOOP_TRUNCATION(OUTPREC, INPREC) ((INPREC) <= 32 && (OUTPREC) <= (INPREC))
-+
 +#define STORE_FLAG_VALUE -1
 +
 +#define Pmode SImode
 +
 +#define FUNCTION_MODE QImode
 +
-+#define NO_IMPLICIT_EXTERN_C 1
++#define SYSTEM_IMPLICIT_EXTERN_C 0
 +
 +
 +/* Address spaces.  */
@@ -11265,10 +11329,10 @@ index 000000000..7fd0d7e56
 +
 diff --git a/gcc/config/spu/spu.md b/gcc/config/spu/spu.md
 new file mode 100644
-index 000000000..947b04484
+index 000000000..bccb48338
 --- /dev/null
 +++ b/gcc/config/spu/spu.md
-@@ -0,0 +1,5246 @@
+@@ -0,0 +1,5245 @@
 +;; Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +;; This file is free software; you can redistribute it and/or modify it under
@@ -12128,9 +12192,9 @@ index 000000000..947b04484
 +    {
 +       start_sequence ();
 +       value =
-+         emit_library_call_value (convert_optab_libfunc (ufloat_optab,
-+                                                         DFmode, SImode),
-+                   NULL_RTX, LCT_NORMAL, DFmode, 1, operands[1], SImode);
++         emit_library_call_value (convert_optab_libfunc (ufloat_optab, DFmode, SImode),
++                   NULL_RTX, LCT_NORMAL, DFmode, operands[1], SImode);
++
 +       rtx_insn *insns = get_insns ();
 +       end_sequence ();
 +       emit_libcall_block (insns, operands[0], value,
@@ -12221,9 +12285,8 @@ index 000000000..947b04484
 +    {      
 +      start_sequence ();
 +      value =
-+         emit_library_call_value (convert_optab_libfunc (ufloat_optab,
-+                                                         DFmode, DImode),
-+                   NULL_RTX, LCT_NORMAL, DFmode, 1, operands[1], DImode);
++         emit_library_call_value (convert_optab_libfunc (ufloat_optab, DFmode, DImode),
++                   NULL_RTX, LCT_NORMAL, DFmode, operands[1], DImode);
 +      rtx_insn *insns = get_insns ();
 +      end_sequence ();
 +      emit_libcall_block (insns, operands[0], value,
@@ -16517,7 +16580,7 @@ index 000000000..947b04484
 +
 diff --git a/gcc/config/spu/spu.opt b/gcc/config/spu/spu.opt
 new file mode 100644
-index 000000000..70da11e27
+index 000000000..8b907ad6b
 --- /dev/null
 +++ b/gcc/config/spu/spu.opt
 @@ -0,0 +1,105 @@
@@ -16539,11 +16602,11 @@ index 000000000..70da11e27
 +; <http://www.gnu.org/licenses/>.
 +
 +mwarn-reloc
-+Target Report Mask(WARN_RELOC)
++Target Mask(WARN_RELOC)
 +Emit warnings when run-time relocations are generated.
 +
 +merror-reloc
-+Target Report Mask(ERROR_RELOC)
++Target Mask(ERROR_RELOC)
 +Emit errors when run-time relocations are generated.
 +
 +mbranch-cost=
@@ -16551,15 +16614,15 @@ index 000000000..70da11e27
 +Specify cost of branches (Default 20).
 +
 +msafe-dma
-+Target Report RejectNegative Mask(SAFE_DMA)
++Target RejectNegative Mask(SAFE_DMA)
 +Make sure loads and stores are not moved past DMA instructions.
 +
 +munsafe-dma
-+Target Report RejectNegative InverseMask(SAFE_DMA)
++Target RejectNegative InverseMask(SAFE_DMA)
 +volatile must be specified on any memory that is effected by DMA.
 +
 +mdual-nops
-+Target Report Var(spu_dual_nops,10) Init(10)
++Target Var(spu_dual_nops,10) Init(10)
 +Insert nops when it might improve performance by allowing dual issue (default).
 +
 +mdual-nops=
@@ -16567,11 +16630,11 @@ index 000000000..70da11e27
 +Insert nops when it might improve performance by allowing dual issue (default).
 +
 +mstdmain
-+Target Report Mask(STD_MAIN)
++Target Mask(STD_MAIN)
 +Use standard main function as entry for startup.
 +
 +mbranch-hints
-+Target Report Mask(BRANCH_HINTS)
++Target Mask(BRANCH_HINTS)
 +Generate branch hints for branches.
 +
 +mhint-max-nops=
@@ -16583,11 +16646,11 @@ index 000000000..70da11e27
 +Approximate maximum number of instructions to allow between a hint and its branch [125].
 +
 +msmall-mem
-+Target Report RejectNegative InverseMask(LARGE_MEM)
++Target RejectNegative InverseMask(LARGE_MEM)
 +Generate code for 18 bit addressing.
 +
 +mlarge-mem
-+Target Report RejectNegative Mask(LARGE_MEM)
++Target RejectNegative Mask(LARGE_MEM)
 +Generate code for 32 bit addressing.
 +
 +mfixed-range=
@@ -16595,7 +16658,7 @@ index 000000000..70da11e27
 +Specify range of registers to make fixed.
 +
 +msafe-hints
-+Target Report Mask(SAFE_HINTS)
++Target Mask(SAFE_HINTS)
 +Insert hbrp instructions after hinted branch targets to avoid the SPU hang issue.
 +
 +march=
@@ -16607,23 +16670,23 @@ index 000000000..70da11e27
 +Schedule code for given CPU.
 +
 +mea32
-+Target Report RejectNegative Var(spu_ea_model,32) Init(32)
++Target RejectNegative Var(spu_ea_model,32) Init(32)
 +Access variables in 32-bit PPU objects (default).
 +
 +mea64
-+Target Report RejectNegative Var(spu_ea_model,64)
++Target RejectNegative Var(spu_ea_model,64)
 +Access variables in 64-bit PPU objects.
 +
 +maddress-space-conversion
-+Target Report Mask(ADDRESS_SPACE_CONVERSION)
++Target Mask(ADDRESS_SPACE_CONVERSION)
 +Allow conversions between __ea and generic pointers (default).
 +
 +mcache-size=
-+Target Report RejectNegative Joined UInteger
++Target RejectNegative Joined UInteger
 +Size (in KB) of software data cache.
 +
 +matomic-updates
-+Target Report
++Target
 +Atomically write back software data cache lines (default).
 +
 diff --git a/gcc/config/spu/spu.opt.urls b/gcc/config/spu/spu.opt.urls

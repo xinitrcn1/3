@@ -3348,10 +3348,10 @@ index 000000000..3e20d1d55
 +
 diff --git a/gcc/config/spu/spu.cc b/gcc/config/spu/spu.cc
 new file mode 100644
-index 000000000..c5c0188cb
+index 000000000..feec54ba1
 --- /dev/null
 +++ b/gcc/config/spu/spu.cc
-@@ -0,0 +1,7488 @@
+@@ -0,0 +1,7486 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -10018,27 +10018,26 @@ index 000000000..c5c0188cb
 +/* Implement targetm.vectorize.add_stmt_cost.  */
 +
 +static unsigned
-+spu_add_stmt_cost (void *data, int count, enum vect_cost_for_stmt kind,
-+		   struct _stmt_vec_info *stmt_info, int misalign,
-+		   enum vect_cost_model_location where)
++spu_add_stmt_cost (void *data, int count, vect_cost_for_stmt kind,
++		  stmt_vec_info stmt_info, int misalign,
++		  vect_cost_model_location where)
 +{
 +  unsigned retval = 0;
-+#if 0
 +  unsigned *cost = (unsigned *) data;
 +  if (flag_vect_cost_model)
 +    {
-+      int stmt_cost = spu_adjust_vect_cost_per_stmt (kind, stmt_info);
++      tree vectype = stmt_info ? stmt_info->vectype : NULL_TREE;
++      int stmt_cost = spu_builtin_vectorization_cost (kind, vectype, misalign);
 +
 +      /* Statements in an inner loop relative to the loop being
-+	 vectorized are weighted more heavily.  The value here is
-+	 arbitrary and could potentially be improved with analysis.  */
-+      if (where == vect_body && stmt_info && stmt_in_inner_loop_p (stmt_info))
-+	count *= 50;  /* FIXME.  */
++        vectorized are weighted more heavily.  The value here is
++        arbitrary and could potentially be improved with analysis.  */
++      if (where == vect_body && stmt_info /*&& stmt_in_inner_loop_p (stmt_info)*/)
++	      count *= 50;  /* FIXME.  */
 +
 +      retval = (unsigned) (count * stmt_cost);
 +      cost[where] += retval;
 +    }
-+#endif
 +  return retval;
 +}
 +
@@ -10584,9 +10583,8 @@ index 000000000..c5c0188cb
 +{
 +  /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
 +       affects_type_identity, handler, exclude } */
-+  { "naked",          0, 0, true,  false, false, false, spu_handle_fndecl_attribute },
-+  { "spu_vector",     0, 0, false, true,  false, false, spu_handle_vector_attribute },
-+  { NULL,             0, 0, false, false, false, false, NULL }
++  { "naked",          0, 0, true,  false, false, false, spu_handle_fndecl_attribute, NULL },
++  { "spu_vector",     0, 0, false, true,  false, false, spu_handle_vector_attribute, NULL }
 +};
 +
 +static const scoped_attribute_specs spu_gnu_attribute_table =

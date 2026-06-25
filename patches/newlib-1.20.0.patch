@@ -6062,6 +6062,18 @@ index 49c81f9..fd0c11a 100644
  #ifndef __EXPORT
  #define __EXPORT
  #endif
+diff --git a/newlib/libc/include/sys/resource.h b/newlib/libc/include/sys/resource.h
+index eb82755..efcedc2 100644
+--- a/newlib/libc/include/sys/resource.h
++++ b/newlib/libc/include/sys/resource.h
+@@ -11,5 +11,7 @@ struct rusage {
+ 	struct timeval ru_stime;	/* system time used */
+ };
+ 
++int getrusage(int, struct rusage *);
++
+ #endif
+ 
 diff --git a/newlib/libc/include/sys/unistd.h b/newlib/libc/include/sys/unistd.h
 index 900faa7..7bd0089 100644
 --- a/newlib/libc/include/sys/unistd.h
@@ -6075,6 +6087,37 @@ index 900faa7..7bd0089 100644
  #if !defined(__INSIDE_CYGWIN__)
  int     _EXFUN(ftruncate, (int __fd, off_t __length));
  int     _EXFUN(truncate, (const char *, off_t __length));
+diff --git a/newlib/libc/search/qsort.c b/newlib/libc/search/qsort.c
+index d47f470..d5d0780 100644
+--- a/newlib/libc/search/qsort.c
++++ b/newlib/libc/search/qsort.c
+@@ -81,7 +81,7 @@ PORTABILITY
+ #define inline
+ #endif
+ 
+-static inline char	*med3 _PARAMS((char *, char *, char *, int (*)()));
++static inline char	*med3 _PARAMS((char *, char *, char *, int (*)(const void* a, const void* b)));
+ static inline void	 swapfunc _PARAMS((char *, char *, int, int));
+ 
+ #define min(a, b)	(a) < (b) ? a : b
+@@ -131,7 +131,7 @@ _DEFUN(med3, (a, b, c, cmp),
+ 	char *a _AND
+ 	char *b _AND
+ 	char *c _AND
+-	int (*cmp)())
++	int (*cmp)(const void* a, const void* b))
+ {
+ 	return cmp(a, b) < 0 ?
+ 	       (cmp(b, c) < 0 ? b : (cmp(a, c) < 0 ? c : a ))
+@@ -143,7 +143,7 @@ _DEFUN(qsort, (a, n, es, cmp),
+ 	void *a _AND
+ 	size_t n _AND
+ 	size_t es _AND
+-	int (*cmp)())
++	int (*cmp)(const void* a, const void* b))
+ {
+ 	char *pa, *pb, *pc, *pd, *pl, *pm, *pn;
+ 	int d, r, swaptype, swap_cnt;
 diff --git a/newlib/libc/sys/configure b/newlib/libc/sys/configure
 index f1635da..875ae25 100755
 --- a/newlib/libc/sys/configure
@@ -12589,11 +12632,12 @@ index 0000000..8f596b3
 +AC_OUTPUT
 diff --git a/newlib/libc/sys/lv2/getreent.c b/newlib/libc/sys/lv2/getreent.c
 new file mode 100644
-index 0000000..7a85ef4
+index 0000000..4a853c7
 --- /dev/null
 +++ b/newlib/libc/sys/lv2/getreent.c
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,16 @@
 +#include <reent.h>
++#include <string.h>
 +
 +static __thread struct _reent t_reent;
 +static __thread struct _reent *t_reentp = 0;
@@ -13099,6 +13143,20 @@ index 0000000..44ff6c6
 +#endif
 +
 +#endif /* _SYS_UTIME_H */
+diff --git a/newlib/libm/common/modfl.c b/newlib/libm/common/modfl.c
+index 32ccc9a..df0ae60 100644
+--- a/newlib/libm/common/modfl.c
++++ b/newlib/libm/common/modfl.c
+@@ -36,7 +36,8 @@ POSSIBILITY OF SUCH DAMAGE.
+ long double
+ modfl (long double x, long double *iptr)
+ {
+-  return modf(x, iptr);
++  double d = *iptr;
++  return modf(x, &d);
+ }
+ #endif
+ 
 diff --git a/newlib/libm/mathfp/s_sine.c b/newlib/libm/mathfp/s_sine.c
 index 9642f4a..1669ffb 100644
 --- a/newlib/libm/mathfp/s_sine.c

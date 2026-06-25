@@ -162,6 +162,18 @@ build_newlib() {
     git_initialize "$CACHEDIR/newlib-$VERSION"
     git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHDIR/newlib-$VERSION.patch"
 
+    TARGET=powerpc64-ps3-elf
+    mkdir -p "$CACHEDIR/build-newlib-$TARGET"
+    cd "$CACHEDIR/build-newlib-$TARGET"
+    [ -f "$CACHEDIR/build-newlib-$TARGET/Makefile" ] \
+        || "$CACHEDIR/newlib-$VERSION/configure" \
+        --prefix="$PREFIX" \
+        --target="$TARGET" \
+        --disable-newlib-supplied-syscalls \
+        --disable-newlib-wide-orient
+    cd "$CACHEDIR/build-newlib-$TARGET" \
+        && gmake -j$NPROC \
+        && gmake install
 }
 
 build_psl1ght() {

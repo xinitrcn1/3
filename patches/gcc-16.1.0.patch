@@ -3238,10 +3238,10 @@ index 000000000..ee519e7ea
 +INT_MODE (OI, 32);
 diff --git a/gcc/config/spu/spu-protos.h b/gcc/config/spu/spu-protos.h
 new file mode 100644
-index 000000000..bcb97e5d9
+index 000000000..3e20d1d55
 --- /dev/null
 +++ b/gcc/config/spu/spu-protos.h
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,104 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -3327,6 +3327,10 @@ index 000000000..bcb97e5d9
 +extern HOST_WIDE_INT spu_function_arg_offset (machine_mode mode, const_tree type);
 +extern pad_direction spu_function_arg_padding (machine_mode, const_tree);
 +extern HOST_WIDE_INT spu_starting_frame_offset ();
++extern bool spu_can_change_mode_class (machine_mode from, machine_mode to, reg_class_t);
++extern bool spu_hard_regno_mode_ok (unsigned, machine_mode);
++extern unsigned int spu_hard_regno_nregs (unsigned, machine_mode mode);
++extern bool spu_modes_tieable_p (machine_mode mode1, machine_mode mode2);
 +#endif /* RTX_CODE  */
 +
 +extern void spu_init_expanders (void);
@@ -3344,10 +3348,10 @@ index 000000000..bcb97e5d9
 +
 diff --git a/gcc/config/spu/spu.cc b/gcc/config/spu/spu.cc
 new file mode 100644
-index 000000000..3b8783bd8
+index 000000000..01c196266
 --- /dev/null
 +++ b/gcc/config/spu/spu.cc
-@@ -0,0 +1,7461 @@
+@@ -0,0 +1,7487 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -3647,7 +3651,7 @@ index 000000000..3b8783bd8
 +   be manipulated in non-trivial ways.  In particular, this means all
 +   the arithmetic is supported.  */
 +static bool
-+spu_scalar_mode_supported_p (machine_mode mode)
++spu_scalar_mode_supported_p (scalar_mode mode)
 +{
 +  switch (mode)
 +    {
@@ -6940,7 +6944,8 @@ index 000000000..3b8783bd8
 +/* Like spu_legitimate_address_p, except with named addresses.  */
 +static bool
 +spu_addr_space_legitimate_address_p (machine_mode mode, rtx x,
-+				     bool reg_ok_strict, addr_space_t as)
++				     bool reg_ok_strict, addr_space_t as,
++             code_helper = ERROR_MARK)
 +{
 +  if (as == ADDR_SPACE_EA)
 +    return (REG_P (x) && (GET_MODE (x) == EAmode));
@@ -7185,9 +7190,7 @@ index 000000000..3b8783bd8
 +}
 +
 +static rtx
-+spu_function_arg (cumulative_args_t cum_v,
-+		  machine_mode mode,
-+		  const_tree type, bool named ATTRIBUTE_UNUSED)
++spu_function_arg (cumulative_args_t cum_v, const function_arg_info &arg)
 +{
 +  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 +  int byte_size;
@@ -7195,8 +7198,8 @@ index 000000000..3b8783bd8
 +  if (*cum >= MAX_REGISTER_ARGS)
 +    return 0;
 +
-+  byte_size = ((mode == BLKmode)
-+	       ? int_size_in_bytes (type) : GET_MODE_SIZE (mode));
++  byte_size = ((arg.mode == BLKmode)
++	       ? int_size_in_bytes (arg.type) : GET_MODE_SIZE (arg.mode));
 +
 +  /* The ABI does not allow parameters to be passed partially in
 +     reg and partially in stack. */
@@ -7204,7 +7207,7 @@ index 000000000..3b8783bd8
 +    return 0;
 +
 +  /* Make sure small structs are left justified in a register. */
-+  if ((mode == BLKmode || (type && AGGREGATE_TYPE_P (type)))
++  if ((arg.mode == BLKmode || (arg.type && AGGREGATE_TYPE_P (arg.type)))
 +      && byte_size < UNITS_PER_WORD && byte_size > 0)
 +    {
 +      machine_mode smode;
@@ -7215,34 +7218,33 @@ index 000000000..3b8783bd8
 +      gr_reg = gen_rtx_EXPR_LIST (VOIDmode,
 +				  gen_rtx_REG (smode, FIRST_ARG_REGNUM + *cum),
 +				  const0_rtx);
-+      return gen_rtx_PARALLEL (mode, gen_rtvec (1, gr_reg));
++      return gen_rtx_PARALLEL (arg.mode, gen_rtvec (1, gr_reg));
 +    }
 +  else
-+    return gen_rtx_REG (mode, FIRST_ARG_REGNUM + *cum);
++    return gen_rtx_REG (arg.mode, FIRST_ARG_REGNUM + *cum);
 +}
 +
 +static void
-+spu_function_arg_advance (cumulative_args_t cum_v, machine_mode mode,
-+			  const_tree type, bool named ATTRIBUTE_UNUSED)
++spu_function_arg_advance (cumulative_args_t cum_v,
++        const function_arg_info &arg)
 +{
 +  CUMULATIVE_ARGS *cum = get_cumulative_args (cum_v);
 +
-+  *cum += (type && TREE_CODE (TYPE_SIZE (type)) != INTEGER_CST
++  *cum += (arg.type && TREE_CODE (TYPE_SIZE (arg.type)) != INTEGER_CST
 +	   ? 1
-+	   : mode == BLKmode
-+	   ? ((int_size_in_bytes (type) + 15) / 16)
-+	   : mode == VOIDmode
++	   : arg.mode == BLKmode
++	   ? ((int_size_in_bytes (arg.type) + 15) / 16)
++	   : arg.mode == VOIDmode
 +	   ? 1
-+	   : TARGET_HARD_REGNO_NREGS (cum, mode));
++	   : TARGET_HARD_REGNO_NREGS (*cum, arg.mode));
 +}
 +
 +/* Variable sized types are passed by reference.  */
 +static bool
 +spu_pass_by_reference (cumulative_args_t cum ATTRIBUTE_UNUSED,
-+		       machine_mode mode ATTRIBUTE_UNUSED,
-+		       const_tree type, bool named ATTRIBUTE_UNUSED)
++        const function_arg_info &arg ATTRIBUTE_UNUSED)
 +{
-+  return type && TREE_CODE (TYPE_SIZE (type)) != INTEGER_CST;
++  return arg.type && TREE_CODE (TYPE_SIZE (arg.type)) != INTEGER_CST;
 +}
 +
 +
@@ -7427,8 +7429,7 @@ index 000000000..3b8783bd8
 +   in the stack then save no registers.  Set pretend_args_size to the
 +   amount of space needed to save the registers. */
 +static void
-+spu_setup_incoming_varargs (cumulative_args_t cum, machine_mode mode,
-+			    tree type, int *pretend_size, int no_rtl)
++spu_setup_incoming_varargs (cumulative_args_t cum, const function_arg_info &arg, int *pretend_size, int no_rtl)
 +{
 +  if (!no_rtl)
 +    {
@@ -7439,7 +7440,7 @@ index 000000000..3b8783bd8
 +
 +      /* cum currently points to the last named argument, we want to
 +         start at the next argument. */
-+      spu_function_arg_advance (pack_cumulative_args (&ncum), mode, type, true);
++      spu_function_arg_advance (pack_cumulative_args (&ncum), arg);
 +
 +      offset = -STACK_POINTER_OFFSET;
 +      for (regno = ncum; regno < MAX_REGISTER_ARGS; regno++)
@@ -10075,7 +10076,7 @@ index 000000000..3b8783bd8
 +}
 +
 +/* Return the appropriate mode for a named address pointer.  */
-+static machine_mode
++static scalar_int_mode
 +spu_addr_space_pointer_mode (addr_space_t addrspace)
 +{
 +  switch (addrspace)
@@ -10090,7 +10091,7 @@ index 000000000..3b8783bd8
 +}
 +
 +/* Return the appropriate mode for a named address address.  */
-+static machine_mode
++static scalar_int_mode
 +spu_addr_space_address_mode (addr_space_t addrspace)
 +{
 +  switch (addrspace)
@@ -10236,7 +10237,7 @@ index 000000000..3b8783bd8
 +    }
 +}
 +
-+static machine_mode
++static scalar_int_mode
 +spu_libgcc_cmp_return_mode (void)
 +{
 +
@@ -10245,7 +10246,7 @@ index 000000000..3b8783bd8
 +  return SImode;
 +}
 +
-+static machine_mode
++static scalar_int_mode
 +spu_libgcc_shift_count_mode (void)
 +{
 +/* For SPU word mode is TI mode so it is better to use SImode
@@ -10539,7 +10540,7 @@ index 000000000..3b8783bd8
 +pad_direction
 +spu_function_arg_padding (machine_mode, const_tree)
 +{
-+  return upward;
++  return PAD_UPWARD;
 +}
 +
 +HOST_WIDE_INT
@@ -10558,8 +10559,27 @@ index 000000000..3b8783bd8
 +	 && GET_MODE_SIZE (from) != GET_MODE_SIZE (to));
 +}
 +
++bool
++spu_hard_regno_mode_ok (unsigned, machine_mode)
++{
++  return true;
++}
++
++unsigned int
++spu_hard_regno_nregs (unsigned, machine_mode mode)
++{
++  return (GET_MODE_BITSIZE(mode) + MAX_FIXED_MODE_SIZE - 1) / MAX_FIXED_MODE_SIZE;
++}
++
++bool
++spu_modes_tieable_p (machine_mode mode1, machine_mode mode2)
++{
++  return GET_MODE_BITSIZE (mode1) <= MAX_FIXED_MODE_SIZE
++   && GET_MODE_BITSIZE (mode2) <= MAX_FIXED_MODE_SIZE;
++}
++
 +/*  Table of machine attributes.  */
-+static const struct attribute_spec spu_attribute_table[] =
++static const attribute_spec spu_gnu_attributes[] =
 +{
 +  /* { name, min_len, max_len, decl_req, type_req, fn_type_req,
 +       affects_type_identity, handler, exclude } */
@@ -10568,18 +10588,28 @@ index 000000000..3b8783bd8
 +  { NULL,             0, 0, false, false, false, false, NULL }
 +};
 +
++static const scoped_attribute_specs spu_gnu_attribute_table =
++{
++  "gnu", { spu_gnu_attributes }
++};
++
++static const scoped_attribute_specs *const spu_attribute_table[] =
++{
++  &spu_gnu_attribute_table
++};
++
 +/*  TARGET overrides.  */
 +
 +/* Values in Registers */
 +
-+#define TARGET_HARD_REGNO_NREGS(REGNO, MODE)   \
-+    ((GET_MODE_BITSIZE(MODE)+MAX_FIXED_MODE_SIZE-1)/MAX_FIXED_MODE_SIZE)
++#undef TARGET_HARD_REGNO_NREGS
++#define TARGET_HARD_REGNO_NREGS spu_hard_regno_nregs
 +
-+#define TARGET_HARD_REGNO_MODE_OK(REGNO, MODE) 1
++#undef TARGET_HARD_REGNO_MODE_OK
++#define TARGET_HARD_REGNO_MODE_OK spu_hard_regno_mode_ok
 +
-+#define TARGET_MODES_TIEABLE_P(MODE1, MODE2) \
-+  (GET_MODE_BITSIZE (MODE1) <= MAX_FIXED_MODE_SIZE \
-+   && GET_MODE_BITSIZE (MODE2) <= MAX_FIXED_MODE_SIZE)
++#undef TARGET_MODES_TIEABLE_P
++#define TARGET_MODES_TIEABLE_P spu_modes_tieable_p
 +
 +#undef TARGET_CAN_CHANGE_MODE_CLASS
 +#define TARGET_CAN_CHANGE_MODE_CLASS spu_can_change_mode_class

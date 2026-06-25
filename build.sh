@@ -32,13 +32,13 @@ build_binutils() {
     download_cached "binutils-$VERSION.tar.xz" "https://ftp.gnu.org/gnu/binutils/binutils-$VERSION.tar.xz"
     [ -d "$CACHEDIR/binutils-$VERSION" ] || tar -xvzf "$CACHEDIR/binutils-$VERSION.tar.xz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/binutils-$VERSION"
-    git -C "$CACHEDIR/binutils-$VERSION" diff >"$PATCHDIR/binutils-$VERSION.patch"
+    git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHDIR/binutils-$VERSION.patch"
 
     TARGET=powerpc64-ps3-elf
     mkdir -p "$CACHEDIR/build-binutils-$TARGET"
+    cd "$CACHEDIR/build-binutils-$TARGET"
     [ -f "$CACHEDIR/build-binutils-$TARGET/Makefile" ] \
-        || cd "$CACHEDIR/build-binutils-$TARGET" \
-        && "$CACHEDIR/binutils-$VERSION/configure" \
+        || "$CACHEDIR/binutils-$VERSION/configure" \
         --prefix="$PREFIX" \
         --target="$TARGET" \
         --disable-nls \
@@ -54,11 +54,11 @@ build_binutils() {
         && gmake -j$NPROC \
         && gmake install
 
-    TARGET=spu
+    TARGET=spu-unknown-elf
     mkdir -p "$CACHEDIR/build-binutils-$TARGET"
+    cd "$CACHEDIR/build-binutils-$TARGET"
     [ -f "$CACHEDIR/build-binutils-$TARGET/Makefile" ] \
-        || cd "$CACHEDIR/build-binutils-$TARGET" \
-        && "$CACHEDIR/binutils-$VERSION/configure" \
+        || "$CACHEDIR/binutils-$VERSION/configure" \
         --prefix="$PREFIX" \
         --target="$TARGET" \
         --disable-nls \
@@ -81,9 +81,69 @@ build_gcc() {
     download_cached "gcc-$VERSION.tar.xz" "https://ftp.gnu.org/gnu/gcc/gcc-$VERSION/gcc-$VERSION.tar.xz"
     [ -d "$CACHEDIR/gcc-$VERSION" ] || tar -xvzf "$CACHEDIR/gcc-$VERSION.tar.xz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/gcc-$VERSION"
-    git -C "$CACHEDIR/gcc-$VERSION" diff >"$PATCHDIR/gcc-$VERSION.patch"
+    git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHDIR/gcc-$VERSION.patch"
 
-    
+    # TARGET=powerpc64-ps3-elf
+    # mkdir -p "$CACHEDIR/build-gcc-$TARGET"
+    # cd "$CACHEDIR/build-gcc-$TARGET"
+    # [ -f "$CACHEDIR/build-gcc-$TARGET/Makefile" ] \
+    #     || "$CACHEDIR/gcc-$VERSION/configure" \
+    #     --prefix="$PREFIX" \
+    #     --target="$TARGET" \
+    #     --disable-dependency-tracking \
+    #     --disable-libcc1 \
+    #     --disable-libstdcxx-pch \
+    #     --disable-multilib \
+    #     --disable-nls \
+    #     --disable-shared \
+    #     --disable-win32-registry \
+    #     --disable-bootstrap \
+    #     --enable-languages="c" \
+    #     --enable-long-double-128 \
+    #     --enable-lto \
+    #     --enable-threads \
+    #     --with-cpu="cell" \
+    #     --with-newlib \
+    #     --enable-newlib-multithread \
+    #     --enable-newlib-hw-fp \
+    #     --with-system-zlib
+    # cd "$CACHEDIR/build-gcc-$TARGET" \
+    #     && gmake -j$NPROC all-gcc \
+    #     && gmake -j$NPROC all-target-libgcc \
+    #     && gmake -j$NPROC all-target-libstdc++-v3 \
+    #     && gmake install-gcc \
+    #     && gmake install-target-libgcc \
+    #     && gmake install-target-libstdc++-v3
+
+    TARGET=spu-unknown-elf
+    mkdir -p "$CACHEDIR/build-gcc-$TARGET"
+    cd "$CACHEDIR/build-gcc-$TARGET"
+    [ -f "$CACHEDIR/build-gcc-$TARGET/Makefile" ] \
+        || "$CACHEDIR/gcc-$VERSION/configure" \
+        --prefix="$PREFIX" \
+        --target="$TARGET" \
+        --disable-dependency-tracking \
+        --disable-libcc1 \
+        --disable-libssp \
+        --disable-multilib \
+        --disable-nls \
+        --disable-shared \
+        --disable-win32-registry \
+        --disable-bootstrap \
+        --enable-languages="c" \
+        --enable-lto \
+        --enable-threads \
+        --with-newlib \
+        --enable-newlib-multithread \
+        --enable-newlib-hw-fp \
+        --with-pic
+    cd "$CACHEDIR/build-gcc-$TARGET" \
+        && gmake -j$NPROC all-gcc \
+        && gmake -j$NPROC all-target-libgcc \
+        && gmake -j$NPROC all-target-libstdc++-v3 \
+        && gmake install-gcc \
+        && gmake install-target-libgcc \
+        && gmake install-target-libstdc++-v3
 }
 
 make_prefix

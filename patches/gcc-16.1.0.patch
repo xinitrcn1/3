@@ -36,11 +36,81 @@ index 38f3d037a..f035c0a5b 100755
  
  	# Recognize the various machine names and aliases which stand
  	# for a CPU type and a company and sometimes even an OS.
+diff --git a/gcc/common/config/spu/spu-common.cc b/gcc/common/config/spu/spu-common.cc
+new file mode 100644
+index 000000000..8a7bab76d
+--- /dev/null
++++ b/gcc/common/config/spu/spu-common.cc
+@@ -0,0 +1,56 @@
++/* Common hooks for SPU.
++   Copyright (C) 2006-2017 Free Software Foundation, Inc.
++
++   This file is free software; you can redistribute it and/or modify it under
++   the terms of the GNU General Public License as published by the Free
++   Software Foundation; either version 3 of the License, or (at your option) 
++   any later version.
++
++   This file is distributed in the hope that it will be useful, but WITHOUT
++   ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++   FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++   for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with GCC; see the file COPYING3.  If not see
++   <http://www.gnu.org/licenses/>.  */
++
++#include "config.h"
++#include "system.h"
++#include "coretypes.h"
++#include "tm.h"
++#include "common/common-target.h"
++#include "common/common-target-def.h"
++#include "opts.h"
++#include "flags.h"
++#include "params.h"
++
++static void
++spu_option_init_struct (struct gcc_options *opts)
++{
++  /* With so many registers this is better on by default. */
++  opts->x_flag_rename_registers = 1;
++}
++
++/* Implement TARGET_OPTION_DEFAULT_PARAMS.  */
++static void
++spu_option_default_params (void)
++{
++  /* Override some of the default param values.  With so many registers
++     larger values are better for these params.  */
++  set_default_param_value (PARAM_MAX_PENDING_LIST_LENGTH, 128);
++}
++
++#undef TARGET_DEFAULT_TARGET_FLAGS
++#define TARGET_DEFAULT_TARGET_FLAGS (TARGET_DEFAULT)
++
++#undef TARGET_OPTION_INIT_STRUCT
++#define TARGET_OPTION_INIT_STRUCT spu_option_init_struct
++
++#undef TARGET_OPTION_DEFAULT_PARAMS
++#define TARGET_OPTION_DEFAULT_PARAMS spu_option_default_params
++
++#undef TARGET_EXCEPT_UNWIND_INFO
++#define TARGET_EXCEPT_UNWIND_INFO  sjlj_except_unwind_info
++
++struct gcc_targetm_common targetm_common = TARGETM_COMMON_INITIALIZER;
 diff --git a/gcc/config.gcc b/gcc/config.gcc
-index 8fe99616f..562e4f667 100644
+index 8fe99616f..d6d3c1057 100644
 --- a/gcc/config.gcc
 +++ b/gcc/config.gcc
-@@ -593,6 +593,9 @@ sparc*-*-*)
+@@ -329,7 +329,6 @@ case ${target}${target_min} in
+  | powerpc*-*-linux*paired*		\
+  | powerpc*-*-*spe*			\
+  | sparc-hal-solaris2*			\
+- | spu*-*-*				\
+  | thumb-*-*				\
+  | *-*-freebsd[12] | *-*-freebsd[1234].* \
+  | *-*-freebsd*aout*			\
+@@ -593,6 +592,9 @@ sparc*-*-*)
  	d_target_objs="sparc-d.o"
  	extra_headers="visintrin.h"
  	;;
@@ -50,7 +120,7 @@ index 8fe99616f..562e4f667 100644
  s390*-*-*)
  	cpu_type=s390
  	d_target_objs="s390-d.o"
-@@ -3039,6 +3042,17 @@ pdp11-*-*)
+@@ -3039,6 +3041,17 @@ pdp11-*-*)
  #	tmake_file="${tmake_file} rs6000/t-fprules"
  #	extra_headers=
  #	;;
@@ -68,14 +138,14 @@ index 8fe99616f..562e4f667 100644
  powerpc-*-darwin*)
  	extra_options="${extra_options} ${cpu_type}/darwin.opt"
  	case ${target} in
-@@ -3613,6 +3627,15 @@ sparc64-*-openbsd*)
+@@ -3613,6 +3626,15 @@ sparc64-*-openbsd*)
  	with_cpu=ultrasparc
  	tmake_file="${tmake_file} sparc/t-sparc"
  	;;
 +spu-*-elf*)
 +	tm_file="dbxelf.h elfos.h spu/spu-elf.h spu/spu.h newlib-stdint.h"
 +	tmake_file="spu/t-spu-elf"
-+        native_system_header_dir=/include
++	native_system_header_dir=/include
 +	extra_headers="spu_intrinsics.h spu_internals.h vmx2spu.h spu_mfcio.h vec_types.h spu_cache.h"
 +	extra_modes=spu/spu-modes.def
 +	c_target_objs="${c_target_objs} spu-c.o"
@@ -84,7 +154,7 @@ index 8fe99616f..562e4f667 100644
  tic6x-*-elf)
  	tm_file="elfos.h ${tm_file} c6x/elf-common.h c6x/elf.h"
  	tm_file="${tm_file} tm-dwarf2.h newlib-stdint.h"
-@@ -5992,6 +6015,23 @@ case "${target}" in
+@@ -5992,6 +6014,23 @@ case "${target}" in
  		esac
  		;;
  
@@ -2814,11 +2884,11 @@ index 000000000..322abc0fb
 +     DONE;
 +  })
 +
-diff --git a/gcc/config/spu/spu-c.c b/gcc/config/spu/spu-c.c
+diff --git a/gcc/config/spu/spu-c.cc b/gcc/config/spu/spu-c.cc
 new file mode 100644
 index 000000000..ba858f1fb
 --- /dev/null
-+++ b/gcc/config/spu/spu-c.c
++++ b/gcc/config/spu/spu-c.cc
 @@ -0,0 +1,231 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
@@ -3268,11 +3338,11 @@ index 000000000..e7fc9bdfc
 +
 +#endif /* _SPU_PROTOS_  */
 +
-diff --git a/gcc/config/spu/spu.c b/gcc/config/spu/spu.c
+diff --git a/gcc/config/spu/spu.cc b/gcc/config/spu/spu.cc
 new file mode 100644
-index 000000000..fcb85c0ee
+index 000000000..338ff1e7a
 --- /dev/null
-+++ b/gcc/config/spu/spu.c
++++ b/gcc/config/spu/spu.cc
 @@ -0,0 +1,7367 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
@@ -3604,7 +3674,7 @@ index 000000000..fcb85c0ee
 +
 +/* GCC assumes that in a paradoxical SUBREG the inner mode occupies the
 +   least significant bytes of the outer mode.  This function returns
-+   TRUE for the SUBREG's where this is correct.  */
++   true for the SUBREG's where this is correct.  */
 +int
 +valid_subreg (rtx op)
 +{
@@ -4861,7 +4931,7 @@ index 000000000..fcb85c0ee
 +  return 0;
 +}
 +
-+/* SAVING is TRUE when we are generating the actual load and store
++/* SAVING is true when we are generating the actual load and store
 +   instructions for REGNO.  When determining the size of the stack
 +   needed for saving register we must allocate enough space for the
 +   worst case, because we don't always have the information early enough
@@ -6550,7 +6620,7 @@ index 000000000..fcb85c0ee
 +  return SPU_NONE;
 +}
 +
-+/* Return TRUE when X, a CONST_VECTOR, only contains CONST_INTs or
++/* Return true when X, a CONST_VECTOR, only contains CONST_INTs or
 +   CONST_DOUBLEs. */
 +static int
 +const_vector_immediate_p (rtx x)
@@ -6665,7 +6735,7 @@ index 000000000..fcb85c0ee
 +  return val >= low && val <= high;
 +}
 +
-+/* TRUE when op is an immediate and an exact power of 2, and given that
++/* true when op is an immediate and an exact power of 2, and given that
 +   OP is 2^scale, scale >= LOW && scale <= HIGH.  When OP is a vector,
 +   all entries must be the same. */
 +bool
@@ -6713,7 +6783,7 @@ index 000000000..fcb85c0ee
 +      return val > 0 && (val & 0x007fffff) == 0
 +	     &&  exp >= low && exp <= high;
 +    }
-+  return FALSE;
++  return false;
 +}
 +
 +/* Return true if X is a SYMBOL_REF to an __ea qualified variable.  */
@@ -6836,19 +6906,19 @@ index 000000000..fcb85c0ee
 +		|| op0 == frame_pointer_rtx
 +		|| op0 == virtual_stack_vars_rtx)
 +	    && (!aligned || (INTVAL (op1) & 15) == 0))
-+	  return TRUE;
++	  return true;
 +	if (GET_CODE (op0) == REG
 +	    && INT_REG_OK_FOR_BASE_P (op0, reg_ok_strict)
 +	    && GET_CODE (op1) == REG
 +	    && INT_REG_OK_FOR_INDEX_P (op1, reg_ok_strict))
-+	  return TRUE;
++	  return true;
 +      }
 +      break;
 +
 +    default:
 +      break;
 +    }
-+  return FALSE;
++  return false;
 +}
 +
 +/* Like spu_legitimate_address_p, except with named addresses.  */
@@ -7404,11 +7474,11 @@ index 000000000..fcb85c0ee
 +    SYMBOL_REF_FLAGS (XEXP (rtl, 0)) |= SYMBOL_FLAG_ALIGN1;
 +}
 +
-+/* Return TRUE if we are certain the mem refers to a complete object
++/* Return true if we are certain the mem refers to a complete object
 +   which is both 16-byte aligned and padded to a 16-byte boundary.  This
 +   would make it safe to store with a single instruction. 
 +   We guarantee the alignment and padding for static objects by aligning
-+   all of them to 16-bytes. (DATA_ALIGNMENT and CONSTANT_ALIGNMENT.)
++   all of them to 16-bytes. (DATA_ALIGNMENT and TARGET_CONSTANT_ALIGNMENT.)
 +   FIXME: We currently cannot guarantee this for objects on the stack
 +   because assign_parm_setup_stack calls assign_stack_local with the
 +   alignment of the parameter mode and in that case the alignment never
@@ -8113,7 +8183,7 @@ index 000000000..fcb85c0ee
 +  return 1;
 +}
 +
-+/* Return TRUE if X is MEM which is a struct member reference
++/* Return true if X is MEM which is a struct member reference
 +   and the member can safely be loaded and stored with a single
 +   instruction because it is padded. */
 +static int
@@ -8209,7 +8279,7 @@ index 000000000..fcb85c0ee
 +    }
 +}
 +
-+/* Return TRUE if x is a CONST_INT, CONST_DOUBLE or CONST_VECTOR that
++/* Return true if x is a CONST_INT, CONST_DOUBLE or CONST_VECTOR that
 +   can be generated using the fsmbi instruction. */
 +int
 +fsmbi_const_p (rtx x)
@@ -8224,7 +8294,7 @@ index 000000000..fcb85c0ee
 +  return 0;
 +}
 +
-+/* Return TRUE if x is a CONST_INT, CONST_DOUBLE or CONST_VECTOR that
++/* Return true if x is a CONST_INT, CONST_DOUBLE or CONST_VECTOR that
 +   can be generated using the cbd, chd, cwd or cdd instruction. */
 +int
 +cpat_const_p (rtx x, machine_mode mode)
@@ -10643,10 +10713,10 @@ index 000000000..fcb85c0ee
 +#include "gt-spu.h"
 diff --git a/gcc/config/spu/spu.h b/gcc/config/spu/spu.h
 new file mode 100644
-index 000000000..5b1994d32
+index 000000000..7fd0d7e56
 --- /dev/null
 +++ b/gcc/config/spu/spu.h
-@@ -0,0 +1,552 @@
+@@ -0,0 +1,546 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -10745,7 +10815,7 @@ index 000000000..5b1994d32
 +   on the stack.  (Except a bug (?) allows some stack objects to be
 +   unaligned.)  */
 +#define DATA_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
-+#define CONSTANT_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
++#define TARGET_CONSTANT_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
 +#define LOCAL_ALIGNMENT(TYPE,ALIGN) ((ALIGN) > 128 ? (ALIGN) : 128)
 +
 +#define EMPTY_FIELD_BOUNDARY 32
@@ -10778,12 +10848,6 @@ index 000000000..5b1994d32
 +#define LONG_TYPE_SIZE 32
 +
 +#define LONG_LONG_TYPE_SIZE 64
-+
-+#define FLOAT_TYPE_SIZE 32
-+
-+#define DOUBLE_TYPE_SIZE 64
-+
-+#define LONG_DOUBLE_TYPE_SIZE 64
 +
 +#define DEFAULT_SIGNED_CHAR 0
 +
@@ -16562,6 +16626,13 @@ index 000000000..70da11e27
 +Target Report
 +Atomically write back software data cache lines (default).
 +
+diff --git a/gcc/config/spu/spu.opt.urls b/gcc/config/spu/spu.opt.urls
+new file mode 100644
+index 000000000..040d0239a
+--- /dev/null
++++ b/gcc/config/spu/spu.opt.urls
+@@ -0,0 +1 @@
++; TODO: fill this lmao
 diff --git a/gcc/config/spu/spu_cache.h b/gcc/config/spu/spu_cache.h
 new file mode 100644
 index 000000000..e114acbbd
@@ -17473,7 +17544,7 @@ index 000000000..47d4dfaa3
 +#endif /* __SPU_MFCIO_H__ */
 diff --git a/gcc/config/spu/t-spu-elf b/gcc/config/spu/t-spu-elf
 new file mode 100644
-index 000000000..2ed15cb23
+index 000000000..a3b774b09
 --- /dev/null
 +++ b/gcc/config/spu/t-spu-elf
 @@ -0,0 +1,34 @@
@@ -17505,12 +17576,12 @@ index 000000000..2ed15cb23
 +  $(srcdir)/config/spu/spu-protos.h \
 +  $(srcdir)/config/spu/spu-builtins.def 
 +
-+spu-c.o: $(srcdir)/config/spu/spu-c.c \
++spu-c.o: $(srcdir)/config/spu/spu-c.cc \
 +    $(srcdir)/config/spu/spu-protos.h \
 +    $(CONFIG_H) $(SYSTEM_H) $(TREE_H) $(CPPLIB_H) \
 +    $(TM_P_H) $(C_COMMON_H) $(C_PRAGMA_H) coretypes.h $(TM_H) insn-codes.h
 +	$(COMPILER) -c $(ALL_COMPILERFLAGS) $(ALL_CPPFLAGS) $(INCLUDES) \
-+		$(srcdir)/config/spu/spu-c.c
++		$(srcdir)/config/spu/spu-c.cc
 diff --git a/gcc/config/spu/vec_types.h b/gcc/config/spu/vec_types.h
 new file mode 100644
 index 000000000..d8b02c0a5
@@ -21544,32 +21615,6 @@ index 000000000..67ae2ba17
 +#endif /* __SPU__ */
 +#endif /* __cplusplus */
 +#endif /* !_VMX2SPU_H_ */
-diff --git a/gcc/config/usegas.h b/gcc/config/usegas.h
-new file mode 100644
-index 000000000..f5f7d8a3d
---- /dev/null
-+++ b/gcc/config/usegas.h
-@@ -0,0 +1,20 @@
-+/* Copyright (C) 2001-2017 Free Software Foundation, Inc.
-+
-+   This file is part of GCC.
-+
-+   GCC is free software; you can redistribute it and/or modify
-+   it under the terms of the GNU General Public License as published by
-+   the Free Software Foundation; either version 3, or (at your option)
-+   any later version.
-+
-+   GCC is distributed in the hope that it will be useful,
-+   but WITHOUT ANY WARRANTY; without even the implied warranty of
-+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-+   GNU General Public License for more details.
-+
-+   You should have received a copy of the GNU General Public License
-+   along with GCC; see the file COPYING3.  If not see
-+   <http://www.gnu.org/licenses/>.  */
-+
-+/* Just set a single flag we can test for it inside other files.  */
-+#define USE_GAS 1
 diff --git a/gcc/configure b/gcc/configure
 index ef780a23c..7d21852bf 100755
 --- a/gcc/configure

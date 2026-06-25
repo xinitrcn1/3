@@ -3,3 +3,5 @@
 !build.sh
 !patches/
 !patches/*.patch
+!files/
+!files/*

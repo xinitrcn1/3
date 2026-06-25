@@ -15,6 +15,8 @@ make_prefix() {
     touch "$PREFIX/make-prefix"
     mkdir -p "$PATCHDIR"
     mkdir -p "$CACHEDIR"
+
+    cp -v files/* prefix/
 }
 
 download_cached() {
@@ -35,7 +37,14 @@ build_binutils() {
     download_cached "binutils-$VERSION.tar.xz" "https://ftp.gnu.org/gnu/binutils/binutils-$VERSION.tar.xz"
     [ -d "$CACHEDIR/binutils-$VERSION" ] || tar -xvzf "$CACHEDIR/binutils-$VERSION.tar.xz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/binutils-$VERSION"
-    git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHDIR/binutils-$VERSION.patch"
+
+    PATCHFILE="$PATCHDIR/binutils-$VERSION.patch"
+    if [ "$DEVELOP" ]; then
+        [ -f "$CACHEDIR/patched-binutils" ] || git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHFILE"
+        touch "$CACHEDIR/patched-binutils"
+    else
+        git -C "$CACHEDIR/binutils-$VERSION" apply "$PATCHFILE"
+    fi
 
     TARGET=powerpc64-ps3-elf
     mkdir -p "$CACHEDIR/build-binutils-$TARGET"
@@ -84,7 +93,14 @@ build_gcc() {
     download_cached "gcc-$VERSION.tar.xz" "https://ftp.gnu.org/gnu/gcc/gcc-$VERSION/gcc-$VERSION.tar.xz"
     [ -d "$CACHEDIR/gcc-$VERSION" ] || tar -xvzf "$CACHEDIR/gcc-$VERSION.tar.xz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/gcc-$VERSION"
-    git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHDIR/gcc-$VERSION.patch"
+
+    PATCHFILE="$PATCHDIR/gcc-$VERSION.patch"
+    if [ "$DEVELOP" ]; then
+        [ -f "$CACHEDIR/patched-gcc" ] || git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHFILE"
+        touch "$CACHEDIR/patched-gcc"
+    else
+        git -C "$CACHEDIR/gcc-$VERSION" apply "$PATCHFILE"
+    fi
 
     TARGET=powerpc64-ps3-elf
     mkdir -p "$CACHEDIR/build-gcc-$TARGET"
@@ -147,6 +163,7 @@ build_gcc() {
     #     && gmake install-gcc \
     #     && gmake install-target-libgcc \
     #     && gmake install-target-libstdc++-v3
+    
     # TODO: ICE when scheduling with libgcc
     cd "$CACHEDIR/build-gcc-$TARGET" \
         && gmake -j$NPROC all-gcc \
@@ -160,7 +177,14 @@ build_newlib() {
     download_cached "newlib-$VERSION.tar.gz" "https://sourceware.org/pub/newlib/newlib-$VERSION.tar.gz"
     [ -d "$CACHEDIR/newlib-$VERSION" ] || tar -xvzf "$CACHEDIR/newlib-$VERSION.tar.gz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/newlib-$VERSION"
-    git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHDIR/newlib-$VERSION.patch"
+
+    PATCHFILE="$PATCHDIR/newlib-$VERSION.patch"
+    if [ "$DEVELOP" ]; then
+        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
+        touch "$CACHEDIR/patched-newlib"
+    else
+        git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
+    fi
 
     TARGET=powerpc64-ps3-elf
     mkdir -p "$CACHEDIR/build-newlib-$TARGET"
@@ -174,19 +198,50 @@ build_newlib() {
     cd "$CACHEDIR/build-newlib-$TARGET" \
         && gmake -j$NPROC \
         && gmake install
+    touch "$PREFIX/build-newlib"
 }
 
 build_psl1ght() {
     COMMIT=f987683
     download_cached "psl1ght.tar.xz" "https://github.com/ps3dev/psl1ght/tarball/master"
     [ -d "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" ] || tar -xvzf "$CACHEDIR/psl1ght.tar.xz" -C "$CACHEDIR"
+    git_initialize "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT"
+
+    PATCHFILE="$PATCHDIR/ps3dev-PSL1GHT-$COMMIT.patch"
+    if [ "$DEVELOP" ]; then
+        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" diff --cached >"$PATCHFILE"
+        touch "$CACHEDIR/ps3dev-PSL1GHT"
+    else
+        git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
+    fi
+
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" \
         && gmake -j$NPROC \
         && gmake install
+    #touch "$PREFIX/build-psl1ght"
 }
 
 make_prefix
 [ -f "$PREFIX/build-binutils" ] || build_binutils
 [ -f "$PREFIX/build-gcc" ] || build_gcc
-build_newlib
-#build_psl1ght
+[ -f "$PREFIX/build-newlib" ] || build_newlib
+
+# PPU symlinks
+which ppu-as      || ln -s "$PREFIX/bin/powerpc64-ps3-elf-as"      "$PREFIX/bin/ppu-as"
+which ppu-gcc     || ln -s "$PREFIX/bin/powerpc64-ps3-elf-gcc"     "$PREFIX/bin/ppu-gcc"
+which ppu-g++     || ln -s "$PREFIX/bin/powerpc64-ps3-elf-g++"     "$PREFIX/bin/ppu-g++"
+which ppu-ar      || ln -s "$PREFIX/bin/powerpc64-ps3-elf-ar"      "$PREFIX/bin/ppu-ar"
+which ppu-ld      || ln -s "$PREFIX/bin/powerpc64-ps3-elf-ld"      "$PREFIX/bin/ppu-ld"
+which ppu-strip   || ln -s "$PREFIX/bin/powerpc64-ps3-elf-strip"   "$PREFIX/bin/ppu-strip"
+which ppu-objcopy || ln -s "$PREFIX/bin/powerpc64-ps3-elf-objcopy" "$PREFIX/bin/ppu-objcopy"
+
+# SPU symlinks
+which spu-as      || ln -s "$PREFIX/bin/spu-unknown-elf-as"        "$PREFIX/bin/spu-as"
+which spu-gcc     || ln -s "$PREFIX/bin/spu-unknown-elf-gcc"       "$PREFIX/bin/spu-gcc"
+which spu-g++     || ln -s "$PREFIX/bin/spu-unknown-elf-g++"       "$PREFIX/bin/spu-g++"
+which spu-ar      || ln -s "$PREFIX/bin/spu-unknown-elf-ar"        "$PREFIX/bin/spu-ar"
+which spu-ld      || ln -s "$PREFIX/bin/spu-unknown-elf-ld"        "$PREFIX/bin/spu-ld"
+which spu-strip   || ln -s "$PREFIX/bin/spu-unknown-elf-strip"     "$PREFIX/bin/spu-strip"
+which spu-objcopy || ln -s "$PREFIX/bin/spu-unknown-elf-objcopy"   "$PREFIX/bin/spu-objcopy"
+
+[ -f "$PREFIX/build-psl1ght" ] || build_psl1ght

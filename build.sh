@@ -42,8 +42,8 @@ build_binutils() {
     if [ "$DEVELOP" ]; then
         git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHFILE"
     else
-        [ -f "$CACHEDIR/patched-binutils" ] || git -C "$CACHEDIR/binutils-$VERSION" apply "$PATCHFILE"
-        touch "$CACHEDIR/patched-binutils"
+        [ -f "$PREFIX/patched-binutils" ] || git -C "$CACHEDIR/binutils-$VERSION" apply "$PATCHFILE"
+        touch "$PREFIX/patched-binutils"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -96,8 +96,8 @@ build_gcc() {
     if [ "$DEVELOP" ]; then
         git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHFILE"
     else
-        [ -f "$CACHEDIR/patched-gcc" ] || git -C "$CACHEDIR/gcc-$VERSION" apply "$PATCHFILE"
-        touch "$CACHEDIR/patched-gcc"
+        [ -f "$PREFIX/patched-gcc" ] || git -C "$CACHEDIR/gcc-$VERSION" apply "$PATCHFILE"
+        touch "$PREFIX/patched-gcc"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -194,11 +194,11 @@ build_legacy_gcc() {
         --with-pic \
         --enable-obsolete
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
+    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
+    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
+    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 
     touch "$PREFIX/build-legacy-gcc"
 }
@@ -213,8 +213,8 @@ build_newlib() {
     if [ "$DEVELOP" ]; then
         git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
     else
-        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
-        touch "$CACHEDIR/patched-newlib"
+        [ -f "$PREFIX/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
+        touch "$PREFIX/patched-newlib"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -222,7 +222,7 @@ build_newlib() {
     cd "$CACHEDIR/build-newlib-$TARGET"
     [ -f "$CACHEDIR/build-newlib-$TARGET/Makefile" ] \
         || "$CACHEDIR/newlib-$VERSION/configure" \
-        --prefix="$PREFIX" \
+        --prefix="$PREFIX/ppu" \
         --target="$TARGET" \
         --disable-newlib-supplied-syscalls \
         --disable-newlib-wide-orient

@@ -40,10 +40,10 @@ build_binutils() {
 
     PATCHFILE="$PATCHDIR/binutils-$VERSION.patch"
     if [ "$DEVELOP" ]; then
-        [ -f "$CACHEDIR/patched-binutils" ] || git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHFILE"
-        touch "$CACHEDIR/patched-binutils"
+        git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHFILE"
     else
-        git -C "$CACHEDIR/binutils-$VERSION" apply "$PATCHFILE"
+        [ -f "$CACHEDIR/patched-binutils" ] || git -C "$CACHEDIR/binutils-$VERSION" apply "$PATCHFILE"
+        touch "$CACHEDIR/patched-binutils"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -62,9 +62,8 @@ build_binutils() {
         --with-gcc \
         --with-gnu-as \
         --with-gnu-ld
-    cd "$CACHEDIR/build-binutils-$TARGET" \
-        && gmake -j$NPROC \
-        && gmake install
+    cd "$CACHEDIR/build-binutils-$TARGET" && gmake -j$NPROC
+    cd "$CACHEDIR/build-binutils-$TARGET" && gmake install
 
     TARGET=spu-unknown-elf
     mkdir -p "$CACHEDIR/build-binutils-$TARGET"
@@ -81,9 +80,8 @@ build_binutils() {
         --with-gcc \
         --with-gnu-as \
         --with-gnu-ld
-    cd "$CACHEDIR/build-binutils-$TARGET" \
-        && gmake -j$NPROC \
-        && gmake install
+    cd "$CACHEDIR/build-binutils-$TARGET" && gmake -j$NPROC
+    cd "$CACHEDIR/build-binutils-$TARGET" && gmake install
 
     touch "$PREFIX/build-binutils"
 }
@@ -96,10 +94,10 @@ build_gcc() {
 
     PATCHFILE="$PATCHDIR/gcc-$VERSION.patch"
     if [ "$DEVELOP" ]; then
-        [ -f "$CACHEDIR/patched-gcc" ] || git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHFILE"
-        touch "$CACHEDIR/patched-gcc"
+        git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHFILE"
     else
-        git -C "$CACHEDIR/gcc-$VERSION" apply "$PATCHFILE"
+        [ -f "$CACHEDIR/patched-gcc" ] || git -C "$CACHEDIR/gcc-$VERSION" apply "$PATCHFILE"
+        touch "$CACHEDIR/patched-gcc"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -126,13 +124,12 @@ build_gcc() {
         --enable-newlib-multithread \
         --enable-newlib-hw-fp \
         --with-system-zlib
-    cd "$CACHEDIR/build-gcc-$TARGET" \
-        && gmake -j$NPROC all-gcc \
-        && gmake -j$NPROC all-target-libgcc \
-        && gmake -j$NPROC all-target-libstdc++-v3 \
-        && gmake install-gcc \
-        && gmake install-target-libgcc \
-        && gmake install-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 
     # TODO: ICE when scheduling with libgcc
 
@@ -158,16 +155,12 @@ build_gcc() {
     #     --enable-newlib-multithread \
     #     --enable-newlib-hw-fp \
     #     --with-pic
-    # # cd "$CACHEDIR/build-gcc-$TARGET" \
-    # #     && gmake -j$NPROC all-gcc \
-    # #     && gmake -j$NPROC all-target-libgcc \
-    # #     && gmake -j$NPROC all-target-libstdc++-v3 \
-    # #     && gmake install-gcc \
-    # #     && gmake install-target-libgcc \
-    # #     && gmake install-target-libstdc++-v3
-    # cd "$CACHEDIR/build-gcc-$TARGET" \
-    #     && gmake -j$NPROC all-gcc \
-    #     && gmake install-gcc
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
+    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 
     touch "$PREFIX/build-gcc"
 }
@@ -200,13 +193,12 @@ build_legacy_gcc() {
         --enable-newlib-hw-fp \
         --with-pic \
         --enable-obsolete
-    cd "$CACHEDIR/build-gcc-$TARGET" \
-        && gmake -j$NPROC all-gcc \
-        && gmake -j$NPROC all-target-libgcc \
-        && gmake -j$NPROC all-target-libstdc++-v3 \
-        && gmake install-gcc \
-        && gmake install-target-libgcc \
-        && gmake install-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 
     touch "$PREFIX/build-legacy-gcc"
 }
@@ -219,10 +211,10 @@ build_newlib() {
 
     PATCHFILE="$PATCHDIR/newlib-$VERSION.patch"
     if [ "$DEVELOP" ]; then
-        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
-        touch "$CACHEDIR/patched-newlib"
+        git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
     else
-        git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
+        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
+        touch "$CACHEDIR/patched-newlib"
     fi
 
     TARGET=powerpc64-ps3-elf
@@ -234,9 +226,8 @@ build_newlib() {
         --target="$TARGET" \
         --disable-newlib-supplied-syscalls \
         --disable-newlib-wide-orient
-    cd "$CACHEDIR/build-newlib-$TARGET" \
-        && gmake -j$NPROC \
-        && gmake install
+    cd "$CACHEDIR/build-newlib-$TARGET" && gmake -j$NPROC
+    cd "$CACHEDIR/build-newlib-$TARGET" && gmake install
 
     TARGET=spu-unknown-elf
     mkdir -p "$CACHEDIR/build-newlib-$TARGET"
@@ -247,9 +238,8 @@ build_newlib() {
         --target="$TARGET" \
         --disable-newlib-supplied-syscalls \
         --disable-newlib-wide-orient
-    cd "$CACHEDIR/build-newlib-$TARGET" \
-        && gmake -j$NPROC \
-        && gmake install
+    cd "$CACHEDIR/build-newlib-$TARGET" && gmake -j$NPROC
+    cd "$CACHEDIR/build-newlib-$TARGET" && gmake install
 
     touch "$PREFIX/build-newlib"
 }
@@ -268,10 +258,9 @@ build_psl1ght() {
         git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
     fi
 
-    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" \
-        && gmake -j$NPROC \
-        && gmake install
-    #touch "$PREFIX/build-psl1ght"
+    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake -j$NPROC
+    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake install
+    touch "$PREFIX/build-psl1ght"
 }
 
 make_prefix

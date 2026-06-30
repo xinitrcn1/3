@@ -167,6 +167,7 @@ build_libstdcxx() {
     TARGET=spu-unknown-elf
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
+    touch "$PREFIX/build-libstdcxx"
 }
 
 build_newlib() {
@@ -176,12 +177,8 @@ build_newlib() {
     git_initialize "$CACHEDIR/newlib-$VERSION"
 
     PATCHFILE="$PATCHDIR/newlib-$VERSION.patch"
-    if [ "$DEVELOP" ]; then
-        git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
-    else
-        [ -f "$PREFIX/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
-        touch "$PREFIX/patched-newlib"
-    fi
+    [ -f "$PREFIX/patched-newlib" ] || git -C "$CACHEDIR/newlib-$VERSION" apply "$PATCHFILE"
+    touch "$PREFIX/patched-newlib"
 
     TARGET=powerpc64-ps3-elf
     mkdir -p "$CACHEDIR/build-newlib-$TARGET"
@@ -218,16 +215,35 @@ build_psl1ght() {
     git_initialize "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT"
 
     PATCHFILE="$PATCHDIR/ps3dev-PSL1GHT-$COMMIT.patch"
-    if [ "$DEVELOP" ]; then
-        [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" diff --cached >"$PATCHFILE"
-        touch "$CACHEDIR/ps3dev-PSL1GHT"
-    else
-        git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
-    fi
+    [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
+    touch "$CACHEDIR/ps3dev-PSL1GHT"
 
+    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake clean
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake -j$NPROC
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake install
     touch "$PREFIX/build-psl1ght"
+}
+
+generate_patches() {
+    VERSION=2.46.1
+    PATCHFILE="$PATCHDIR/binutils-$VERSION.patch"
+    git -C "$CACHEDIR/binutils-$VERSION" add .
+    git -C "$CACHEDIR/binutils-$VERSION" diff --cached >"$PATCHFILE"
+
+    VERSION=16.1.0
+    PATCHFILE="$PATCHDIR/gcc-$VERSION.patch"
+    git -C "$CACHEDIR/gcc-$VERSION" add .
+    git -C "$CACHEDIR/gcc-$VERSION" diff --cached >"$PATCHFILE"
+
+    VERSION=1.20.0
+    PATCHFILE="$PATCHDIR/newlib-$VERSION.patch"
+    git -C "$CACHEDIR/newlib-$VERSION" add .
+    git -C "$CACHEDIR/newlib-$VERSION" diff --cached >"$PATCHFILE"
+
+    COMMIT=f987683
+    PATCHFILE="$PATCHDIR/ps3dev-PSL1GHT-$COMMIT.patch"
+    git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" add .
+    git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" diff --cached >"$PATCHFILE"
 }
 
 make_prefix
@@ -255,3 +271,4 @@ which spu-strip   || ln -s "$PREFIX/spu/bin/spu-unknown-elf-strip"     "$PREFIX/
 which spu-objcopy || ln -s "$PREFIX/spu/bin/spu-unknown-elf-objcopy"   "$PREFIX/bin/spu-objcopy"
 
 [ -f "$PREFIX/build-psl1ght" ] || build_psl1ght
+generate_patches

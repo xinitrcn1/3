@@ -1,3 +1,31 @@
+diff --git a/common/libspumars/spu/Makefile b/common/libspumars/spu/Makefile
+index db0276d..b28bec1 100644
+--- a/common/libspumars/spu/Makefile
++++ b/common/libspumars/spu/Makefile
+@@ -47,7 +47,7 @@ INCLUDES	:= -I$(BASEDIR) \
+ 			   -I$(BASEDIR)/../jq/common \
+ 			   -I$(BASEDIR)/../../../spu/include
+ 
+-LIBS 		:= -lsputhread
++LIBS 		:= -lc -lsputhread
+ LIBPATHS	:= -L$(BASEDIR)/../../../spu/libsputhread/lib/spu
+ 
+ CFLAGS		:= -Os -Wall $(MACHDEP) -DLIBSPUMARS_INTERNAL $(INCLUDES)
+diff --git a/ppu/crt/Makefile b/ppu/crt/Makefile
+index fd36e1d..c1c6886 100644
+--- a/ppu/crt/Makefile
++++ b/ppu/crt/Makefile
+@@ -60,8 +60,8 @@ ppu:
+ #---------------------------------------------------------------------------------
+ install: all
+ #---------------------------------------------------------------------------------
+-	@cp -frv $(CURDIR)/ppu/lv2-*.o $(PS3DEV)/ppu/ppu/lib
+-	@cp -frv $(CURDIR)/lv2.ld $(PS3DEV)/ppu/ppu/lib
++	@cp -frv $(CURDIR)/ppu/lv2-*.o $(PS3DEV)/ppu/powerpc64-ps3-elf/lib
++	@cp -frv $(CURDIR)/lv2.ld $(PS3DEV)/ppu/powerpc64-ps3-elf/lib
+ 
+ .PHONY: crts ppu install
+ 
 diff --git a/ppu/include/rsx/gcm_sys.h b/ppu/include/rsx/gcm_sys.h
 index 18876f2..bc96bbf 100644
 --- a/ppu/include/rsx/gcm_sys.h
@@ -11,3 +39,39 @@ index 18876f2..bc96bbf 100644
  
  s32 gcmInitSystemMode(const u64 mode);
  u32 gcmGetTiledPitchSize(const u32 size);
+diff --git a/spu_rules b/spu_rules
+index 67a0d73..e78756d 100644
+--- a/spu_rules
++++ b/spu_rules
+@@ -15,8 +15,7 @@ export LIBPSL1GHT_LIB	:=	-L$(PSL1GHT)/spu/lib
+ 
+ export WM_CFLAGS		:= -Os -mfixed-range=80-127 -funroll-loops -fschedule-insns
+ export WM_STACK			?= 0x39e0
+-export WM_LDFLAGS		:= -nostdlib \
+-						   -Wl,--defsym=__stack=$(WM_STACK) \
++export WM_LDFLAGS		:= -Wl,--defsym=__stack=$(WM_STACK) \
+ 						   -Wl,-Ttext-segment=0x2a00 \
+ 						   -Wl,--entry,mars_module_entry -Wl,-u,mars_module_entry \
+ 						   -Wl,--gc-sections \
+@@ -27,11 +26,11 @@ export WM_LDFLAGS		:= -nostdlib \
+ 
+ export TASK_CFLAGS		:= -Os -ffast-math -ftree-vectorize -funroll-loops -fschedule-insns
+ export TASK_LDFLAGS 	:= -Wl,-Ttext-segment=0x3a00 -Wl,--gc-sections -Wl,--local-store=0x3a00:0x3FFFF \
+-						   -L$(PSL1GHT)/spu/lib -Wl,--start-group -lspumarstask -lspumars -lsputhread -Wl,--end-group
++						   -L$(PSL1GHT)/spu/lib -Wl,--start-group -lc -lspumarstask -lspumars -lsputhread -Wl,--end-group
+ 
+ export JOB_CFLAGS		:= -Os -fpic -ffast-math -ftree-vectorize -funroll-loops -fschedule-insns
+ export JOB_LDFLAGS 		:= -nostartfiles -fpic -Wl,-r -Wl,-q -Wl,--entry,_start \
+-						   -L$(PSL1GHT)/spu/lib -Wl,--start-group -lspumarsjq -lspumars -lsputhread -Wl,--end-group
++						   -L$(PSL1GHT)/spu/lib -Wl,--start-group -lc -lspumarsjq -lspumars -lsputhread -Wl,--end-group
+ 
+ PREFIX	:=	spu-
+ 
+diff --git a/tools/sfo_pkg/pkg b/tools/sfo_pkg/pkg
+new file mode 100755
+index 0000000..f768739
+Binary files /dev/null and b/tools/sfo_pkg/pkg differ
+diff --git a/tools/sfo_pkg/sfo b/tools/sfo_pkg/sfo
+new file mode 100755
+index 0000000..2fcb2db
+Binary files /dev/null and b/tools/sfo_pkg/sfo differ

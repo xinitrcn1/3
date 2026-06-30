@@ -3348,10 +3348,10 @@ index 000000000..3e20d1d55
 +
 diff --git a/gcc/config/spu/spu.cc b/gcc/config/spu/spu.cc
 new file mode 100644
-index 000000000..feec54ba1
+index 000000000..2abd71ebb
 --- /dev/null
 +++ b/gcc/config/spu/spu.cc
-@@ -0,0 +1,7486 @@
+@@ -0,0 +1,7509 @@
 +/* Copyright (C) 2006-2017 Free Software Foundation, Inc.
 +
 +   This file is free software; you can redistribute it and/or modify it under
@@ -3595,6 +3595,23 @@ index 000000000..feec54ba1
 +  */
 +
 +  flag_omit_frame_pointer = 1;
++
++  /* The SPU port predates GCC's current scheduler internals (SPU was removed
++     from upstream after GCC 9).  Its cost hooks (HBR latency 18, adjust_cost
++     up to 20) can yield a delay exceeding max_insn_queue_index (31), which
++     ICEs in change_queue_index during sched1/sched2.  SPU dual-issue bundling
++     and branch hints are handled in spu_machine_dependent_reorg, not the
++     generic scheduler, so default those passes off (overridable).  */
++  if (!global_options_set.x_flag_schedule_insns)
++    flag_schedule_insns = 0;
++  if (!global_options_set.x_flag_schedule_insns_after_reload)
++    flag_schedule_insns_after_reload = 0;
++  /* Branch hints can land too far from their branch after final layout (the
++     distance estimate under-counts), causing "Relocation doesn't fit"
++     assembler errors on large functions.  Default them off for reliability;
++     -mbranch-hints re-enables.  */
++  if (!(target_flags_explicit & MASK_BRANCH_HINTS))
++    target_flags &= ~MASK_BRANCH_HINTS;
 +
 +  /* Functions must be 8 byte aligned so we correctly handle dual issue */
 +  /*
@@ -6413,7 +6430,13 @@ index 000000000..feec54ba1
 +     jump_insn.  We adjust here so higher cost insns will get scheduled
 +     earlier. */
 +  if (JUMP_P (insn) && dep_type == REG_DEP_ANTI)
-+    return insn_cost (dep_insn, false) - 3;
++    {
++      /* Clamp to the scheduler's queue range: gcc 16 asserts
++         delay <= max_insn_queue_index in change_queue_index, and this
++         heuristic cost (from insn_cost) can exceed it.  */
++      int c = insn_cost (dep_insn, false) - 3;
++      return c > max_insn_queue_index ? max_insn_queue_index : c;
++    }
 +
 +  return cost;
 +}
@@ -21763,6 +21786,42 @@ index cdf2997cb..c7e637c28 100644
       emul_name="-melf64ppc"
        ;;
       *le-*-freebsd*)
+diff --git a/gcc/expmed.cc b/gcc/expmed.cc
+index d57ea78d6..eb4ff1fc4 100644
+--- a/gcc/expmed.cc
++++ b/gcc/expmed.cc
+@@ -641,7 +641,14 @@ store_bit_field_using_insv (const extraction_insn *insv, rtx op0,
+ 				 SUBREG_BYTE (xop0));
+ 	}
+       if (REG_P (xop0) && GET_MODE (xop0) != op_mode)
+-	xop0 = gen_lowpart_SUBREG (op_mode, xop0);
++	{
++	  /* If such a lowpart subreg can't be created (e.g. SPU's TImode
++	     insv vs an SFmode complex part), give up and use the generic
++	     bit-field store instead of ICEing.  */
++	  if (!validate_subreg (op_mode, GET_MODE (xop0), xop0, 0))
++	    return false;
++	  xop0 = gen_lowpart_SUBREG (op_mode, xop0);
++	}
+     }
+ 
+   /* If the destination is a paradoxical subreg such that we need a
+@@ -1582,7 +1589,14 @@ extract_bit_field_using_extv (const extraction_insn *extv, rtx op0,
+       if (GET_CODE (op0) == SUBREG && op0_mode.require () != ext_mode)
+ 	return NULL_RTX;
+       if (REG_P (op0) && op0_mode.require () != ext_mode)
+-	op0 = gen_lowpart_SUBREG (ext_mode, op0);
++	{
++	  /* Decline the ext(z)v path when the lowpart subreg would be invalid
++	     (e.g. SPU's TImode extv applied to an SFmode complex part); fall
++	     back to generic bit-field extraction instead of ICEing.  */
++	  if (!validate_subreg (ext_mode, op0_mode.require (), op0, 0))
++	    return NULL_RTX;
++	  op0 = gen_lowpart_SUBREG (ext_mode, op0);
++	}
+     }
+ 
+   /* If BITS_BIG_ENDIAN is zero on a BYTES_BIG_ENDIAN machine, we count
 diff --git a/libgcc/config.host b/libgcc/config.host
 index ac10ccc43..1195c3a64 100644
 --- a/libgcc/config.host

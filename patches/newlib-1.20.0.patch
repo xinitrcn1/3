@@ -6002,6 +6002,27 @@ index c7d8f7e..ec46400 100644
  	done
  
  info:
+diff --git a/libgloss/spu/mmap_eaddr.c b/libgloss/spu/mmap_eaddr.c
+index 1ca0301..10b99f3 100644
+--- a/libgloss/spu/mmap_eaddr.c
++++ b/libgloss/spu/mmap_eaddr.c
+@@ -65,3 +65,16 @@ unsigned long long mmap_eaddr(unsigned long long start, size_t length, int
+    */
+   return *(unsigned long long *) (&sys);
+ }
++
++void * mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
++    return (void *)mmap_eaddr((unsigned long long)addr, len, prot, flags, fd, offset);
++}
++void * mremap(void *addr, size_t len, int prot, int flags) {
++    return (void *)mremap_eaddr((unsigned long long)addr, len, prot, flags);
++}
++void * msync(void *addr, size_t len, int flags) {
++    return (void *)msync_eaddr((unsigned long long)addr, len, flags);
++}
++void * munmap(void *addr, size_t len) {
++    return (void *)munmap_eaddr((unsigned long long)addr, len);
++}
 diff --git a/newlib/configure.host b/newlib/configure.host
 index ef73fd0..6dcb23d 100644
 --- a/newlib/configure.host
@@ -6087,6 +6108,40 @@ index 900faa7..7bd0089 100644
  #if !defined(__INSIDE_CYGWIN__)
  int     _EXFUN(ftruncate, (int __fd, off_t __length));
  int     _EXFUN(truncate, (const char *, off_t __length));
+diff --git a/newlib/libc/machine/spu/mmap_ea.c b/newlib/libc/machine/spu/mmap_ea.c
+index 0b4a5d8..2db9329 100644
+--- a/newlib/libc/machine/spu/mmap_ea.c
++++ b/newlib/libc/machine/spu/mmap_ea.c
+@@ -64,3 +64,4 @@ __ea void *mmap_ea (__ea void *start, size_ea_t length, int prot, int
+   return (__ea void *) (int) res;
+ #endif
+ }
++
+diff --git a/newlib/libc/machine/spu/sys/mman.h b/newlib/libc/machine/spu/sys/mman.h
+index 84fad62..94e7283 100644
+--- a/newlib/libc/machine/spu/sys/mman.h
++++ b/newlib/libc/machine/spu/sys/mman.h
+@@ -74,12 +74,14 @@ POSSIBILITY OF SUCH DAMAGE.
+ extern int shm_open(const char *name, int oflag, mode_t mode);
+ extern int shm_unlink(const char * name);
+ 
+-unsigned long long mmap_eaddr(unsigned long long start, size_t length, int
+-                              prot, int flags, int fd, off_t offset);
+-unsigned long long mremap_eaddr(unsigned long long old_addr, size_t
+-                                old_size, size_t new_size, int flags);
+-unsigned long long msync_eaddr(unsigned long long start, size_t length,
+-                               int flags);
++unsigned long long mmap_eaddr(unsigned long long start, size_t length, int prot, int flags, int fd, off_t offset);
++unsigned long long mremap_eaddr(unsigned long long old_addr, size_t old_size, size_t new_size, int flags);
++unsigned long long msync_eaddr(unsigned long long start, size_t length, int flags);
+ unsigned long long munmap_eaddr(unsigned long long start, size_t length);
+ 
++void * mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset);
++void * mremap(void *addr, size_t len, int prot, int flags);
++void * msync(void *addr, size_t len, int flags);
++void * munmap(void *addr, size_t len);
++
+ #endif /* _MMAN_H_ */
 diff --git a/newlib/libc/search/qsort.c b/newlib/libc/search/qsort.c
 index d47f470..d5d0780 100644
 --- a/newlib/libc/search/qsort.c
@@ -12009,8 +12064,7 @@ index 0000000..60fb38c
 +if test -n "$CONFIG_FILES"; then
 +
 +
-+ac_cr='
-'
++ac_cr=''
 +ac_cs_awk_cr=`$AWK 'BEGIN { print "a\rb" }' </dev/null 2>/dev/null`
 +if test "$ac_cs_awk_cr" = "a${ac_cr}b"; then
 +  ac_cs_awk_cr='\\r'
@@ -12918,7 +12972,7 @@ index 0000000..b28e4e9
 +}
 diff --git a/newlib/libc/sys/lv2/sys/dirent.h b/newlib/libc/sys/lv2/sys/dirent.h
 new file mode 100644
-index 0000000..84780e9
+index 0000000..a66ea43
 --- /dev/null
 +++ b/newlib/libc/sys/lv2/sys/dirent.h
 @@ -0,0 +1,62 @@

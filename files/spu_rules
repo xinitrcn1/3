@@ -15,8 +15,7 @@ export LIBPSL1GHT_LIB	:=	-L$(PSL1GHT)/spu/lib
 
 export WM_CFLAGS		:= -Os -mfixed-range=80-127 -funroll-loops -fschedule-insns
 export WM_STACK			?= 0x39e0
-export WM_LDFLAGS		:= -nostdlib \
-						   -Wl,--defsym=__stack=$(WM_STACK) \
+export WM_LDFLAGS		:= -Wl,--defsym=__stack=$(WM_STACK) \
 						   -Wl,-Ttext-segment=0x2a00 \
 						   -Wl,--entry,mars_module_entry -Wl,-u,mars_module_entry \
 						   -Wl,--gc-sections \

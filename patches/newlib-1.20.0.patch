@@ -6024,7 +6024,7 @@ index 1ca0301..10b99f3 100644
 +    return (void *)munmap_eaddr((unsigned long long)addr, len);
 +}
 diff --git a/newlib/configure.host b/newlib/configure.host
-index ef73fd0..6dcb23d 100644
+index ef73fd0..75e1c09 100644
 --- a/newlib/configure.host
 +++ b/newlib/configure.host
 @@ -437,7 +437,10 @@ case "${host}" in
@@ -6039,7 +6039,17 @@ index ef73fd0..6dcb23d 100644
    m68hc11-*-*|m6811-*-*|m6812-*-*|m68hc12-*-*)
  	;;
  
-@@ -682,6 +685,12 @@ case "${host}" in
+@@ -463,6 +466,9 @@ case "${host}" in
+   moxie*)
+         sys_dir=
+         ;;
++  powerpc64-ps3-elf)
++    sys_dir=lv2
++    ;;
+   powerpcle-*-pe)
+ 	posix_dir=posix
+ 	;;
+@@ -682,6 +688,12 @@ case "${host}" in
          syscall_dir=syscalls
  	default_newlib_io_long_long="yes"
          ;;

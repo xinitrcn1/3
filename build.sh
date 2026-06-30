@@ -14,7 +14,7 @@ make_prefix() {
     [ -f "$PREFIX/make-prefix" ] || mount -t tmpfs ps3-prefix "$PREFIX"
     touch "$PREFIX/make-prefix"
     mkdir -p "$PATCHDIR" "$CACHEDIR"
-    mkdir -p "$PREFIX/spu" "$PREFIX/ppu"
+    mkdir -p "$PREFIX/spu" "$PREFIX/ppu" "$PREFIX/bin"
 
     cp -v files/* prefix/
 }
@@ -126,50 +126,10 @@ build_gcc() {
         --with-system-zlib
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
-    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 
     # TODO: ICE when scheduling with libgcc
-
-    # TARGET=spu-unknown-elf
-    # mkdir -p "$CACHEDIR/build-gcc-$TARGET"
-    # cd "$CACHEDIR/build-gcc-$TARGET"
-    # [ -f "$CACHEDIR/build-gcc-$TARGET/Makefile" ] \
-    #     || "$CACHEDIR/gcc-$VERSION/configure" \
-    #     --prefix="$PREFIX/spu" \
-    #     --target="$TARGET" \
-    #     --disable-dependency-tracking \
-    #     --disable-libcc1 \
-    #     --disable-libssp \
-    #     --disable-multilib \
-    #     --disable-nls \
-    #     --disable-shared \
-    #     --disable-win32-registry \
-    #     --disable-bootstrap \
-    #     --enable-languages="c,c++" \
-    #     --enable-lto \
-    #     --enable-threads \
-    #     --with-newlib \
-    #     --enable-newlib-multithread \
-    #     --enable-newlib-hw-fp \
-    #     --with-pic
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
-    # cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
-
-    touch "$PREFIX/build-gcc"
-}
-
-build_legacy_gcc() {
-    VERSION=9.5.0
-    download_cached "gcc-$VERSION.tar.gz" "https://ftp.gnu.org/gnu/gcc/gcc-$VERSION/gcc-$VERSION.tar.gz"
-    [ -d "$CACHEDIR/gcc-$VERSION" ] || tar -xvzf "$CACHEDIR/gcc-$VERSION.tar.gz" -C "$CACHEDIR"
-
     TARGET=spu-unknown-elf
     mkdir -p "$CACHEDIR/build-gcc-$TARGET"
     cd "$CACHEDIR/build-gcc-$TARGET"
@@ -191,16 +151,22 @@ build_legacy_gcc() {
         --with-newlib \
         --enable-newlib-multithread \
         --enable-newlib-hw-fp \
-        --with-pic \
-        --enable-obsolete
+        --with-pic
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-gcc
-    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
-    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libgcc
     cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-gcc
-    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
-    #cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libgcc
 
-    touch "$PREFIX/build-legacy-gcc"
+    touch "$PREFIX/build-gcc"
+}
+
+build_libstdcxx() {
+    TARGET=powerpc64-ps3-elf
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
+    TARGET=spu-unknown-elf
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake -j$NPROC all-target-libstdc++-v3
+    cd "$CACHEDIR/build-gcc-$TARGET" && gmake install-target-libstdc++-v3
 }
 
 build_newlib() {
@@ -226,7 +192,7 @@ build_newlib() {
         --target="$TARGET" \
         --disable-newlib-supplied-syscalls \
         --disable-newlib-wide-orient
-    cd "$CACHEDIR/build-newlib-$TARGET" && gmake -j$NPROC
+    cd "$CACHEDIR/build-newlib-$TARGET" && { gmake -j$NPROC || gmake; }
     cd "$CACHEDIR/build-newlib-$TARGET" && gmake install
 
     TARGET=spu-unknown-elf
@@ -238,15 +204,16 @@ build_newlib() {
         --target="$TARGET" \
         --disable-newlib-supplied-syscalls \
         --disable-newlib-wide-orient
-    cd "$CACHEDIR/build-newlib-$TARGET" && gmake -j$NPROC
-    cd "$CACHEDIR/build-newlib-$TARGET" && gmake install
+    NEWLIB_CFLAGS="-g -O2 -fpermissive"
+    cd "$CACHEDIR/build-newlib-$TARGET" && { gmake -j$NPROC CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS" || gmake CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS"; }
+    cd "$CACHEDIR/build-newlib-$TARGET" && gmake install CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS"
 
     touch "$PREFIX/build-newlib"
 }
 
 build_psl1ght() {
     COMMIT=f987683
-    download_cached "psl1ght.tar.xz" "https://github.com/ps3dev/psl1ght/tarball/master"
+    download_cached "psl1ght.tar.xz" "https://github.com/ps3dev/psl1ght/tarball/f98768311f1b112422953400638117e741ab6840"
     [ -d "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" ] || tar -xvzf "$CACHEDIR/psl1ght.tar.xz" -C "$CACHEDIR"
     git_initialize "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT"
 
@@ -266,8 +233,8 @@ build_psl1ght() {
 make_prefix
 [ -f "$PREFIX/build-binutils" ] || build_binutils
 [ -f "$PREFIX/build-gcc" ] || build_gcc
-[ -f "$PREFIX/build-legacy-gcc" ] || build_legacy_gcc
 [ -f "$PREFIX/build-newlib" ] || build_newlib
+[ -f "$PREFIX/build-libstdcxx" ] || build_libstdcxx
 
 # PPU symlinks
 which ppu-as      || ln -s "$PREFIX/ppu/bin/powerpc64-ps3-elf-as"      "$PREFIX/bin/ppu-as"

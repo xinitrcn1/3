@@ -192,6 +192,17 @@ build_newlib() {
     cd "$CACHEDIR/build-newlib-$TARGET" && { gmake -j$NPROC || gmake; }
     cd "$CACHEDIR/build-newlib-$TARGET" && gmake install
 
+    cat << EOF >"mri.txt"
+CREATE $PREFIX/ppu/$TARGET/lib/libc-temporal.a
+ADDLIB $PREFIX/ppu/$TARGET/lib/libc.a
+ADDLIB $PREFIX/ppu/$TARGET/lib/libsysbase.a
+SAVE
+END
+EOF
+    ar -M < mri.txt
+    rm mri.txt
+    mv $PREFIX/ppu/$TARGET/lib/libc-temporal.a $PREFIX/ppu/$TARGET/lib/libc.a
+
     TARGET=spu-unknown-elf
     mkdir -p "$CACHEDIR/build-newlib-$TARGET"
     cd "$CACHEDIR/build-newlib-$TARGET"
@@ -205,6 +216,17 @@ build_newlib() {
     cd "$CACHEDIR/build-newlib-$TARGET" && { gmake -j$NPROC CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS" || gmake CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS"; }
     cd "$CACHEDIR/build-newlib-$TARGET" && gmake install CFLAGS_FOR_TARGET="$NEWLIB_CFLAGS"
 
+    cat << EOF >"mri.txt"
+CREATE $PREFIX/spu/$TARGET/lib/libc-temporal.a
+ADDLIB $PREFIX/spu/$TARGET/lib/libc.a
+ADDLIB $PREFIX/spu/$TARGET/lib/libgloss.a
+SAVE
+END
+EOF
+    ar -M < mri.txt
+    rm mri.txt
+    mv $PREFIX/spu/$TARGET/lib/libc-temporal.a $PREFIX/spu/$TARGET/lib/libc.a
+
     touch "$PREFIX/build-newlib"
 }
 
@@ -215,12 +237,14 @@ build_psl1ght() {
     git_initialize "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT"
 
     PATCHFILE="$PATCHDIR/ps3dev-PSL1GHT-$COMMIT.patch"
-    [ -f "$CACHEDIR/patched-newlib" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
-    touch "$CACHEDIR/ps3dev-PSL1GHT"
+    [ -f "$PREFIX/patched-PSL1GHT" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
+    touch "$PREFIX/patched-PSL1GHT"
 
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake clean
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake -j$NPROC
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake install
+
+    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake samples
     touch "$PREFIX/build-psl1ght"
 }
 

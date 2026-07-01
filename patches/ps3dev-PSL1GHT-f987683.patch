@@ -39,6 +39,51 @@ index 18876f2..bc96bbf 100644
  
  s32 gcmInitSystemMode(const u64 mode);
  u32 gcmGetTiledPitchSize(const u32 size);
+diff --git a/samples/spu/spuchain/source/main.c b/samples/spu/spuchain/source/main.c
+index 5acc13b..317059a 100644
+--- a/samples/spu/spuchain/source/main.c
++++ b/samples/spu/spuchain/source/main.c
+@@ -38,8 +38,8 @@ int main(int argc,char *argv[])
+ 	sysSpuImage image;
+ 	u32 cause,status,i;
+ 	sysSpuThreadArgument arg[6];
+-	sysSpuThreadGroupAttribute grpattr = { 7+1, ptr2ea("mygroup"), 0, 0 };
+-	sysSpuThreadAttribute attr = { ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
++	sysSpuThreadGroupAttribute grpattr = { 7+1, (const char*)ptr2ea("mygroup"), 0, 0 };
++	sysSpuThreadAttribute attr = { (const char *)ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
+ 
+ 	printf("spuchain starting....\n");
+ 
+diff --git a/samples/spu/spudma/source/main.c b/samples/spu/spudma/source/main.c
+index 4ba6f8a..e914a11 100644
+--- a/samples/spu/spudma/source/main.c
++++ b/samples/spu/spudma/source/main.c
+@@ -18,8 +18,8 @@ int main(int argc,char *argv[])
+ 	sysSpuImage image;
+ 	u32 thread_id,group_id;
+ 	sysSpuThreadArgument arg = { 0, 0, 0, 0 };
+-	sysSpuThreadGroupAttribute grpattr = { 7+1, ptr2ea("mygroup"), 0, 0 };
+-	sysSpuThreadAttribute attr = { ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
++	sysSpuThreadGroupAttribute grpattr = { 7+1, (const char*)ptr2ea("mygroup"), 0, 0 };
++	sysSpuThreadAttribute attr = { (const char*)ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
+ 
+ 	printf("spudma starting....\n");
+ 
+diff --git a/samples/spu/sputhread/source/main.c b/samples/spu/sputhread/source/main.c
+index f2a952c..d37a627 100644
+--- a/samples/spu/sputhread/source/main.c
++++ b/samples/spu/sputhread/source/main.c
+@@ -20,8 +20,8 @@ int main(int argc,char *argv[])
+ 	sys_event_t event;
+ 	sys_event_queue_attr_t evQAttr = { SYS_EVENT_QUEUE_FIFO, SYS_EVENT_QUEUE_PPU, "myEvQ" };
+ 	sysSpuThreadArgument arg = { 0, 0, 0, 0 };
+-	sysSpuThreadGroupAttribute grpattr = { 7+1, ptr2ea("mygroup"), 0, 0 };
+-	sysSpuThreadAttribute attr = { ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
++	sysSpuThreadGroupAttribute grpattr = { 7+1, (const char*)ptr2ea("mygroup"), 0, 0 };
++	sysSpuThreadAttribute attr = { (const char *)ptr2ea("mythread"), 8+1, SPU_THREAD_ATTR_NONE };
+ 
+ 	sysSpuInitialize(6,0);
+ 	sysSpuImageImport(&image,spu_bin,0);
 diff --git a/spu_rules b/spu_rules
 index 67a0d73..e78756d 100644
 --- a/spu_rules

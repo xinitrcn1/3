@@ -39,6 +39,16 @@ index 18876f2..bc96bbf 100644
  
  s32 gcmInitSystemMode(const u64 mode);
  u32 gcmGetTiledPitchSize(const u32 size);
+diff --git a/samples/graphics/Makefile b/samples/graphics/Makefile
+index 562edbe..d3216d5 100644
+--- a/samples/graphics/Makefile
++++ b/samples/graphics/Makefile
+@@ -1,4 +1,4 @@
+-TARGETS := rsxtest rsxtest_spu cairo # jpgtest pngtest rsxTest rsxTestVP videoTest
++TARGETS := blitting rsxtest rsxtest_spu # jpgtest pngtest rsxTest rsxTestVP videoTest
+ 
+ all:
+ 	@for TARGET in $(TARGETS); do $(MAKE) --no-print-directory -C $$TARGET; done
 diff --git a/samples/spu/spuchain/source/main.c b/samples/spu/spuchain/source/main.c
 index 5acc13b..317059a 100644
 --- a/samples/spu/spuchain/source/main.c

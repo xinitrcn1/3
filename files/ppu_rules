@@ -56,10 +56,10 @@ BUILDDIR		?=	$(CURDIR)/build
 %.self: %.elf
 	$(VERB) echo CEX self ... $(notdir $@)
 	$(VERB) mkdir -p $(BUILDDIR)
-	$(VERB) $(STRIP) $< -o $(BUILDDIR)/$(notdir $<)
-	$(VERB) $(SPRX) $(BUILDDIR)/$(notdir $<)
-	$(VERB) $(SELF) $(BUILDDIR)/$(notdir $<) $@
-	$(VERB) $(FSELF) $(BUILDDIR)/$(notdir $<) $(basename $@).fake.self
+	$(VERB) $(STRIP) $< -o $(BUILDDIR)/$(notdir $@)
+	$(VERB) $(SPRX) $(BUILDDIR)/$(notdir $@)
+	$(VERB) $(SELF) $(BUILDDIR)/$(notdir $@) $@
+	$(VERB) $(FSELF) $(BUILDDIR)/$(notdir $@) $(basename $@).fake.self
 
 %.pkg: %.self
 	$(VERB) echo building pkg ... $(notdir $@)

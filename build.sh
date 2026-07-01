@@ -240,11 +240,10 @@ build_psl1ght() {
     [ -f "$PREFIX/patched-PSL1GHT" ] || git -C "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" apply "$PATCHFILE"
     touch "$PREFIX/patched-PSL1GHT"
 
-    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake clean
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake -j$NPROC
     cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake install
 
-    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && gmake samples
+    cd "$CACHEDIR/ps3dev-PSL1GHT-$COMMIT" && VERBOSE=1 gmake samples
     touch "$PREFIX/build-psl1ght"
 }
 

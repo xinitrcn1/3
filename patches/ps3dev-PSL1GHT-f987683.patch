@@ -120,3 +120,33 @@ diff --git a/tools/sfo_pkg/sfo b/tools/sfo_pkg/sfo
 new file mode 100755
 index 0000000..2fcb2db
 Binary files /dev/null and b/tools/sfo_pkg/sfo differ
+diff --git a/tools/sprxlinker/Makefile b/tools/sprxlinker/Makefile
+index 697bc86..d9a9e4f 100644
+--- a/tools/sprxlinker/Makefile
++++ b/tools/sprxlinker/Makefile
+@@ -38,7 +38,8 @@ ifneq (,$(findstring Darwin,$(UNAME)))
+ endif
+ 
+ ifneq (,$(findstring BSD,$(UNAME)))
+-	LDFLAGS += -lelf
++	CFLAGS	+= -I/usr/local/include
++	LDFLAGS += -L/usr/local/lib -lelf
+ endif
+ 
+ ifneq (,$(findstring SunOS,$(UNAME)))
+diff --git a/tools/sprxlinker/linker.c b/tools/sprxlinker/linker.c
+index 1273f8b..f4bd476 100644
+--- a/tools/sprxlinker/linker.c
++++ b/tools/sprxlinker/linker.c
+@@ -108,7 +108,10 @@ int main(int argc,char *argv[])
+ 		return 1;
+ 	}
+ 
+-	elf_version(EV_CURRENT);
++	if (elf_version(EV_CURRENT) == EV_NONE) {
++		fprintf(stderr,"libelf could not read elf file: %s\n",elf_errmsg(elf_errno()));
++		return 1;
++	}
+ 	
+ 	Elf *elf = elf_begin(fd,ELF_C_READ,NULL);
+ 	if(!elf) {
